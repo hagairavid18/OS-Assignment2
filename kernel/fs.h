@@ -5,6 +5,8 @@
 #define ROOTINO  1   // root i-number
 #define BSIZE 1024  // block size
 
+
+
 // Disk layout:
 // [ boot block | super block | log | inode blocks |
 //                                          free bit map | data blocks]
@@ -58,3 +60,8 @@ struct dirent {
   char name[DIRSIZ];
 };
 
+//TASK 2.1.4
+struct sigaction {
+  void (*sa_handler) (int);
+  uint sigmask;
+};

@@ -1,5 +1,6 @@
 struct stat;
 struct rtcdate;
+struct sigaction;
 
 // system calls
 int fork(void);
@@ -9,7 +10,7 @@ int pipe(int*);
 int write(int, const void*, int);
 int read(int, void*, int);
 int close(int);
-int kill(int);
+int kill(int,int);
 int exec(char*, char**);
 int open(const char*, int);
 int mknod(const char*, short, short);
@@ -23,6 +24,15 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
+
+//TASK 2.1.3
+uint sigprocmask(uint);
+//TASK 2.1.4
+int sigaction(int, const struct sigaction*, struct sigaction*);
+//TASK 2.1.5
+void sigret (void);
+
+
 
 // ulib.c
 int stat(const char*, struct stat*);

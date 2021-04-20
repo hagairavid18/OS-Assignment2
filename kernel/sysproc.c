@@ -7,6 +7,7 @@
 #include "spinlock.h"
 #include "proc.h"
 
+
 uint64
 sys_exit(void)
 {
@@ -80,7 +81,7 @@ sys_kill(void)
 
   if(argint(0, &pid) < 0)
     return -1;
-  return kill(pid);
+  return kill(pid,9);
 }
 
 // return how many clock tick interrupts have occurred
@@ -94,4 +95,43 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+//TASK 2.1.3
+uint64
+sys_sigprocmask(void){
+
+  uint sigmask;
+  if(argint(0, &sigmask) < 0)
+    return -1;
+  return sigprocmask(sigmask);
+
+}
+
+//TASK 2.1.4
+uint64
+sys_sigaction(void){
+
+  uint signum;
+  uint64 act;
+  uint64 oldact;
+  if(argint(0,&signum)<0){
+    return -1;
+  }
+  if(argaddr(1,&act)<0){
+    return -1;  
+  }
+  if(argaddr(2,&oldact)<0){
+    return -1;  
+  }
+  return sigaction(signum,(struct sigaction*) act,(struct sigaction*) oldact);
+
+}
+
+uint64
+sys_sigret(void){
+  //TODO complete
+  sigret(); 
+  return 0;
+
 }
