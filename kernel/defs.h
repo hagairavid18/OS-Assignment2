@@ -11,6 +11,9 @@ struct superblock;
 
 //TASK 2.1.4
 struct sigaction;
+struct trapframe;
+
+
 
 
 // bio.c
@@ -115,6 +118,13 @@ uint            sigprocmask (uint sigmask);
 int             sigaction (int signum, const struct sigaction *act, struct sigaction *oldact);
 //TASK 2.1.5
 void            sigret (void);
+//Task 2.4
+void            handleSignal(struct trapframe *tf);
+
+// Q2.4
+// sigret_bride.S
+// void            sigret_call_start(void);
+// void            sigret_call_end(void);
 
 
 // swtch.S

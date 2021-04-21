@@ -7,6 +7,9 @@
 #include "defs.h"
 #include "fs.h"
 
+extern void *sigret_call_start(void);
+extern void *sigret_call_end(void);
+
 struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
@@ -718,22 +721,19 @@ uint sigprocmask(uint sigmask)
 int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
 {
   // check whether it is a valid act changing & act is not null
-  if (signum == SIGKILL || signum == SIGSTOP || act != 0)
+  if (signum == SIGKILL || signum == SIGSTOP || act == 0)
   {
     return -1;
   }
-
   struct proc *p = myproc();
+
   if (oldact != 0)
   {
-    oldact->sa_handler = p->sigHandlers[signum];
-    oldact->sigmask = p->sigMask;
-
-    // oldact->sa_handler = p->sigHandlers[signum]->sa_handler ;
-    // oldact->sigmask = p->sigHandlers[signum]->sigmask;
+    copyout(p->pagetable, (uint64)&oldact->sa_handler, (char *)&p->sigHandlers[signum], sizeof(p->sigHandlers[signum]));
+    copyout(p->pagetable, (uint64)&oldact->sigmask, (char *)&p->sigMask, sizeof(p->sigMask));
   }
-
-  p->sigHandlers[signum] = act->sa_handler;
+  copyin(p->pagetable, (char *)&p->sigHandlers[signum], (uint64)&act->sa_handler, sizeof(act->sa_handler));
+  copyin(p->pagetable, (char *)&p->sigMask, (uint64)&act->sigmask, sizeof(act->sigmask));
 
   return 0;
 }
@@ -741,6 +741,7 @@ int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
 //TASK 2.1.5
 void sigret(void)
 {
+  printf("in sigret\n");
   struct proc *p = myproc();
   memmove(p->trapframe, p->usrTFB, sizeof(struct trapframe));
   p->trapframe->kernel_sp += sizeof(struct trapframe);
@@ -764,6 +765,7 @@ void sigkill_handler()
 
 void handleSignal(struct trapframe *tf)
 {
+
   struct proc *p;
   p = myproc();
   if (p != 0)
@@ -771,26 +773,52 @@ void handleSignal(struct trapframe *tf)
     // if (((tf->cs) & 3) != DPL_USER) {
     //   return;
     // }
-
+    //printf("pending sigs to pid:%d is:%d\n",p->pid,p->pendingSigs);
     for (int i = 0; i < 32; ++i)
     {
       if ((1 << i & p->pendingSigs) && !((1 << i) & p->sigMask) && (p->sigHandlers[i] != (void *)SIG_IGN))
       {
+        printf("found signal to deal with. number %d\n ", i);
         if (p->sigHandlers[i] == (void *)SIG_DFL)
         { //kernel space
-
+          printf("found defauld handler for signal: \n ", i);
           if (i == SIGSTOP)
-            handleStop();
+            sigstop_handler();
           else
-            handleKill(); // includes the sigkill & default handler
+            sigkill_handler(); // includes the sigkill & default handler
         }
         else
         { //user space
-          
+          printf("found non-defauld handler for signal: \n ", i);
+          printf("%p: \n ", p->sigHandlers[i]);
+          p->trapframe->sp -= sizeof(struct trapframe);
+          printf("in backup level1: \n ");
+          p->usrTFB = (struct trapframe *)(p->trapframe->sp);
+          printf("in backup level2: \n ");
+
+          copyout(p->pagetable, (uint64)&p->usrTFB, (char *)&p->trapframe, sizeof(p->trapframe));
+          //memmove(p->usrTFB, p->trapframe, sizeof(struct trapframe));
+          printf("in backup level3: \n ");
+
+          printf("after backup trapframe: \n ");
+          uint64 size = (uint64)&sigret_call_end - (uint64)&sigret_call_start;
+          p->trapframe->sp -= size;
+          printf("inject function level 1: \n ");
+          copyout(p->pagetable, (uint64)&p->trapframe->sp, (char *)&sigret_call_start, size);
+          //memmove((void *)(p->trapframe->sp), sigret_call_start, size);
+          printf("inject function level 2: \n ");
+          p->trapframe->a2 = i;
+          p->trapframe->ra = p->trapframe->sp;
+          //*((int *)(p->trapframe->a0)) = p->trapframe->sp;
+          printf("before changeing epc: \n ");
+          p->trapframe->epc = (uint64)p->sigHandlers[i];
+          printf(" epc: %p \n ", p->trapframe->epc);
+
+          return;
         }
       }
-      
-      turnOffBit(i, p);
+
+      // turnOffBit(i, p);
     }
   }
   return;

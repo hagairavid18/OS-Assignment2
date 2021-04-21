@@ -90,6 +90,8 @@ void
 usertrapret(void)
 {
   struct proc *p = myproc();
+  //Task 2.4
+  handleSignal(p->trapframe);
 
   // we're about to switch the destination of traps from
   // kerneltrap() to usertrap(), so turn off interrupts until
@@ -115,11 +117,14 @@ usertrapret(void)
   x |= SSTATUS_SPIE; // enable interrupts in user mode
   w_sstatus(x);
 
+
   // set S Exception Program Counter to the saved user pc.
   w_sepc(p->trapframe->epc);
 
   // tell trampoline.S the user page table to switch to.
   uint64 satp = MAKE_SATP(p->pagetable);
+
+  
 
   // jump to trampoline.S at the top of memory, which 
   // switches to the user page table, restores user registers,
