@@ -120,7 +120,7 @@ struct proc {
   void* sigHandlers[32];
   int handlersmasks[32];
 
-  struct trapframe usrTFB;
+  struct trapframe *usrTFB;
   int maskB;
   int handleingsignal;
 };

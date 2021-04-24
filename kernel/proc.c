@@ -743,14 +743,14 @@ void sigret(void)
 {
   printf("in sigret\n");
   struct proc *p = myproc();
-  //printf("epc is : %p\n",p->trapframe->epc);
-  //copyin(p->pagetable,(char *)p->trapframe, (uint64)p->usrTFB, sizeof(p->trapframe));
-  //printf("epc is : %p\n",p->trapframe->epc);
-  memmove(p->trapframe, &p->usrTFB, sizeof(struct trapframe));
-  //printf("epc is : %p\n",p->trapframe->epc);
+  //retreive back our original trapframe and original process's mask
+  copyin(p->pagetable,(char *)p->trapframe, (uint64)p->usrTFB,sizeof(struct trapframe));
+  p->sigMask = p->maskB;
+
+  //resore satck state as before handeling the signals
+  p->trapframe->sp += sizeof(struct trapframe);
   p->handleingsignal = 0;
 
-  //p->trapframe->sp += sizeof(struct trapframe);
 }
 
 //TODO: Check if enough
@@ -795,30 +795,32 @@ void handleSignal()
             sigkill_handler(); // includes the sigkill & default handler
         }
         else
-        { //user space
+        { 
+        //back up the process' mask and change to its signal handler's costum mask
         p->maskB = p->sigMask;
         p->sigMask= p->handlersmasks[i];
         p->handleingsignal = 1;
-        // p->trapframe->sp -= sizeof(struct trapframe);
-        // p->usrTFB = (struct trapframe* )(p->trapframe->sp);
-        // copyout(p->pagetable, (uint64)&p->usrTFB, (char *)&p->trapframe, sizeof(p->trapframe));
-        // p->trapframe->epc = (uint64)p->sigHandlers[i];
-        memmove(&p->usrTFB, p->trapframe, sizeof(struct trapframe));
 
-        // uint64 size = (uint64)&sigret_call_end - (uint64)&sigret_call_start;
-        // p->trapframe->sp -= size;
-        // //   // printf("inject function level 1: \n ");
-        // copyout(p->pagetable, (uint64)&p->trapframe->sp, (char *)&sigret_call_start, size);
+        //make a space on user's stack to store the curr trapframe and copy
+        p->trapframe->sp -= sizeof(struct trapframe);
+        p->usrTFB = (struct trapframe* )(p->trapframe->sp);
+        copyout(p->pagetable, (uint64)p->usrTFB, (char *)p->trapframe, sizeof(struct trapframe));
+
+        //calculate the injected function size, make space on top of user's stack and copy the system call sigret call .
+        uint64 size = (uint64)&sigret_call_end - (uint64)&sigret_call_start;
+        p->trapframe->sp -= size;
+        copyout(p->pagetable, (uint64)p->trapframe->sp, (char *)&sigret_call_start, size);
+
+        //store argument for signal handler function, we want to return to the place where we injected the system call
         p->trapframe->a0 = i;
-        p->trapframe->a1 = p->trapframe->sp;
-          // p->trapframe->ra = p->trapframe->sp+4;
-          //copyout(p->pagetable, (uint64)&p->usrTFB, (char *)&p->trapframe, sizeof(p->trapframe));
-          //printf(" epc: %p \n ", p->trapframe->epc);
-          //printf("former epc is: %p",p->usrTFB.epc);
-          p->trapframe->epc = (uint64)p->sigHandlers[i];
-          p->pendingSigs ^= (1 << i); // Remove the signal from the pending_signals
+        p->trapframe->ra = p->trapframe->sp;
+         
+        //finally change the program counter to point on the signal handler function gave by the user and turn of this ignal bit
+        p->trapframe->epc = (uint64)p->sigHandlers[i];
+        p->pendingSigs ^= (1 << i); // Remove the signal from the pending_signals
           
-          return;
+        return;
+
           
   
         }
