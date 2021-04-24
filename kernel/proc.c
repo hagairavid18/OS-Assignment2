@@ -80,6 +80,7 @@ mycpu(void)
   return c;
 }
 
+//TODO: how to fix myproc() for Q3?
 // Return the current struct proc *, or zero if none.
 struct proc *
 myproc(void)
@@ -90,6 +91,44 @@ myproc(void)
   pop_off();
   return p;
 }
+
+// Q3 >>>
+// Return the current struct thread*, or zero if none.
+struct thread *
+mythread(void)
+{
+  push_off();
+  struct cpu *c = mycpu();
+  struct thread *th = c->thread;
+  pop_off();
+  return th;
+}
+
+// initizialised first thread in initiated proc
+// retrun 0 on success, -1 otherwise
+int
+initthread (struct proc *p){
+  /*
+    TODO: implement function
+  */
+  struct thread* th = &p->threads[0];
+  th->id = 0;                         // Set first id to 0;
+
+  return 1;
+}
+
+int
+initthreadstable (struct proc *p){
+  struct thread *th;
+
+  for (th = p->threads; th < &p->threads[NTHREAD]; th++)
+  { 
+    th->state = UNUSED_THREAD;
+  }
+  return 1; 
+}
+
+// <<< END
 
 int allocpid()
 {
@@ -130,6 +169,14 @@ found:
   p->pid = allocpid();
   p->state = USED;
 
+  // Q3 >>>
+  //TODO: finish!
+
+  if ( !initthreadstable(p) || !initthread(p)) return 0;  // Initial threads table with UNUSED state & init the first thread
+
+  // <<< Q3
+
+
   // Allocate a trapframe page.
   if ((p->trapframe = (struct trapframe *)kalloc()) == 0)
   {
@@ -153,11 +200,13 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  // Q2 >>>
   int i;
   for (i = 0; i < 32; i++)
   {
     p->sigHandlers[i] = (void *)SIG_DFL;
   }
+  // <<< END
 
   return p;
 }

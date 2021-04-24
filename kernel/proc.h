@@ -1,9 +1,13 @@
+#include "klt.h"
   //TASK 2.1.1
 #define SIG_DFL 0
 #define SIG_IGN 1
 #define SIGKILL 9
 #define SIGSTOP 17
 #define SIGCONT 19
+
+// Q3.1
+#define NTHREAD 8
 
 // Saved registers for kernel context switches.
 struct context {
@@ -31,6 +35,9 @@ struct cpu {
   struct context context;     // swtch() here to enter scheduler().
   int noff;                   // Depth of push_off() nesting.
   int intena;                 // Were interrupts enabled before push_off()?
+
+  // Q3
+  struct thread *thread;      // The thread running on this cpu, or null.
 };
 
 extern struct cpu cpus[NCPU];
@@ -87,7 +94,9 @@ struct trapframe {
   /* 280 */ uint64 t6;
 };
 
-enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
+// enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE }; //TODO: CHANGE ACCORDANCE TO Q3
+enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE }; //TODO: CHANGE ACCORDANCE TO Q3
+
 
 // Per-process state
 struct proc {
@@ -123,4 +132,7 @@ struct proc {
   struct trapframe *usrTFB;
   int maskB;
   int handleingsignal;
+
+  // Q3 
+  struct thread threads[NTHREAD]; //threads 
 };
