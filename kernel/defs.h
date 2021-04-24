@@ -119,7 +119,7 @@ int             sigaction (int signum, const struct sigaction *act, struct sigac
 //TASK 2.1.5
 void            sigret (void);
 //Task 2.4
-void            handleSignal(struct trapframe *tf);
+void            handleSignal(void);
 
 // Q2.4
 // sigret_bride.S

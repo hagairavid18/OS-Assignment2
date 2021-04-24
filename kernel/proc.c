@@ -730,10 +730,10 @@ int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
   if (oldact != 0)
   {
     copyout(p->pagetable, (uint64)&oldact->sa_handler, (char *)&p->sigHandlers[signum], sizeof(p->sigHandlers[signum]));
-    copyout(p->pagetable, (uint64)&oldact->sigmask, (char *)&p->sigMask, sizeof(p->sigMask));
+    copyout(p->pagetable, (uint64)&oldact->sigmask, (char *)&p->handlersmasks[signum], sizeof(p->sigMask));
   }
   copyin(p->pagetable, (char *)&p->sigHandlers[signum], (uint64)&act->sa_handler, sizeof(act->sa_handler));
-  copyin(p->pagetable, (char *)&p->sigMask, (uint64)&act->sigmask, sizeof(act->sigmask));
+  copyin(p->pagetable, (char *)&p->handlersmasks[signum], (uint64)&act->sigmask, sizeof(act->sigmask));
 
   return 0;
 }
@@ -743,8 +743,14 @@ void sigret(void)
 {
   printf("in sigret\n");
   struct proc *p = myproc();
-  memmove(p->trapframe, p->usrTFB, sizeof(struct trapframe));
-  p->trapframe->kernel_sp += sizeof(struct trapframe);
+  //printf("epc is : %p\n",p->trapframe->epc);
+  //copyin(p->pagetable,(char *)p->trapframe, (uint64)p->usrTFB, sizeof(p->trapframe));
+  //printf("epc is : %p\n",p->trapframe->epc);
+  memmove(p->trapframe, &p->usrTFB, sizeof(struct trapframe));
+  //printf("epc is : %p\n",p->trapframe->epc);
+  p->handleingsignal = 0;
+
+  //p->trapframe->sp += sizeof(struct trapframe);
 }
 
 //TODO: Check if enough
@@ -763,12 +769,13 @@ void sigkill_handler()
   p->killed = 1;
 }
 
-void handleSignal(struct trapframe *tf)
+void handleSignal()
 {
+  
 
   struct proc *p;
   p = myproc();
-  if (p != 0)
+  if ((p != 0 )& (p->handleingsignal ==0))
   {
     // if (((tf->cs) & 3) != DPL_USER) {
     //   return;
@@ -789,36 +796,34 @@ void handleSignal(struct trapframe *tf)
         }
         else
         { //user space
-          printf("found non-defauld handler for signal: \n ", i);
-          printf("%p: \n ", p->sigHandlers[i]);
-          p->trapframe->sp -= sizeof(struct trapframe);
-          printf("in backup level1: \n ");
-          p->usrTFB = (struct trapframe *)(p->trapframe->sp);
-          printf("in backup level2: \n ");
+        p->maskB = p->sigMask;
+        p->sigMask= p->handlersmasks[i];
+        p->handleingsignal = 1;
+        // p->trapframe->sp -= sizeof(struct trapframe);
+        // p->usrTFB = (struct trapframe* )(p->trapframe->sp);
+        // copyout(p->pagetable, (uint64)&p->usrTFB, (char *)&p->trapframe, sizeof(p->trapframe));
+        // p->trapframe->epc = (uint64)p->sigHandlers[i];
+        memmove(&p->usrTFB, p->trapframe, sizeof(struct trapframe));
 
-          copyout(p->pagetable, (uint64)&p->usrTFB, (char *)&p->trapframe, sizeof(p->trapframe));
-          //memmove(p->usrTFB, p->trapframe, sizeof(struct trapframe));
-          printf("in backup level3: \n ");
-
-          printf("after backup trapframe: \n ");
-          uint64 size = (uint64)&sigret_call_end - (uint64)&sigret_call_start;
-          p->trapframe->sp -= size;
-          printf("inject function level 1: \n ");
-          copyout(p->pagetable, (uint64)&p->trapframe->sp, (char *)&sigret_call_start, size);
-          //memmove((void *)(p->trapframe->sp), sigret_call_start, size);
-          printf("inject function level 2: \n ");
-          p->trapframe->a2 = i;
-          p->trapframe->ra = p->trapframe->sp;
-          //*((int *)(p->trapframe->a0)) = p->trapframe->sp;
-          printf("before changeing epc: \n ");
+        // uint64 size = (uint64)&sigret_call_end - (uint64)&sigret_call_start;
+        // p->trapframe->sp -= size;
+        // //   // printf("inject function level 1: \n ");
+        // copyout(p->pagetable, (uint64)&p->trapframe->sp, (char *)&sigret_call_start, size);
+        p->trapframe->a0 = i;
+        p->trapframe->a1 = p->trapframe->sp;
+          // p->trapframe->ra = p->trapframe->sp+4;
+          //copyout(p->pagetable, (uint64)&p->usrTFB, (char *)&p->trapframe, sizeof(p->trapframe));
+          //printf(" epc: %p \n ", p->trapframe->epc);
+          //printf("former epc is: %p",p->usrTFB.epc);
           p->trapframe->epc = (uint64)p->sigHandlers[i];
-          printf(" epc: %p \n ", p->trapframe->epc);
-
+          p->pendingSigs ^= (1 << i); // Remove the signal from the pending_signals
+          
           return;
+          
+  
         }
       }
 
-      // turnOffBit(i, p);
     }
   }
   return;

@@ -112,10 +112,15 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+ 
 
   //TASK 2.1.1
   uint pendingSigs;
   uint sigMask;
   void* sigHandlers[32];
-  struct trapframe* usrTFB;
+  int handlersmasks[32];
+
+  struct trapframe usrTFB;
+  int maskB;
+  int handleingsignal;
 };

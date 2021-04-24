@@ -137,30 +137,38 @@ void multipleChildrenTest()
         sigaction(i, &sig1, &sig2);
     }
     sigaction(31, &sig1, &sig2);
-    printf("%p",sig2.sa_handler);
+    sigaction(31, &sig1, &sig2);
+    printf("%p\n",sig2.sa_handler);
     int pid = getpid();
-    for (int i = 0; i < numOfSigs; ++i)
+    for (int i = 0; i < 10; ++i)
     {
         int child = fork();
         if (child == 0)
         {
             int signum = i;
+            if (signum!=9 && signum!=17 && signum!=19){
             kill(pid, signum);
+            printf("exited %d\n",i);
+            
+            }
             exit(0);
         }
     }
+   for (int i = 0; i < 10; ++i)
+    {
+        printf("waitinf\n");
+        wait((int *)0);
+        
+    }
     while (1)
     {
-        if (count == numOfSigs)
+        if (count == 9)
         {
             printf("All signals received!\n");
             break;
         }
     }
-    for (int i = 0; i < numOfSigs; ++i)
-    {
-        wait((int *)0);
-    }
+     
     sig1.sa_handler = 0;
     for (int i = 0; i < numOfSigs; ++i)
     {
@@ -461,6 +469,8 @@ void incCount(int signum)
 {
     printf("in incount\n");
     count++;
+    sigret();
+    printf("after sigret in incount\n");
 }
 
 // void itoa(int num,char* str){
