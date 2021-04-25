@@ -404,6 +404,8 @@ int fork(void)
   int i, pid;
   struct proc *np;
   struct proc *p = myproc();
+  struct thread * th = mythread();
+
 
   // Allocate process.
   if ((np = allocproc()) == 0)
@@ -421,10 +423,10 @@ int fork(void)
   np->sz = p->sz;
 
   // copy saved user registers.
-  *(np->trapframe) = *(p->trapframe);
+  *(np->threads)[0]->trapframe) = *(th->trapframe);
 
   // Cause fork to return 0 in the child.
-  np->trapframe->a0 = 0;
+  np->threads[0]->trapframe->a0 = 0;
 
   //TASK 2.1.2
   for (i = 0; i < 32; i++)
