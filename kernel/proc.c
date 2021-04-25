@@ -793,12 +793,13 @@ void handleSignal()
             sigstop_handler();
           else
             sigkill_handler(); // includes the sigkill & default handler
+            return;
         }
         else
         { 
-        //back up the process' mask and change to its signal handler's costum mask
+        //back up the process' mask and change to its signal handler's costum mask OR the process mask
         p->maskB = p->sigMask;
-        p->sigMask= p->handlersmasks[i];
+        p->sigMask= p->handlersmasks[i] | p->sigMask;
         p->handleingsignal = 1;
 
         //make a space on user's stack to store the curr trapframe and copy
