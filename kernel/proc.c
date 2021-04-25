@@ -97,6 +97,7 @@ myproc(void)
 struct thread *
 mythread(void)
 {
+  // TODO; copied from mycpu(), need to be modified
   push_off();
   struct cpu *c = mycpu();
   struct thread *th = c->thread;
@@ -192,6 +193,7 @@ found:
     freeproc(p);
     release(&p->lock);
     return 0;
+    memset
   }
 
   // Set up new context to start executing at forkret,
@@ -308,8 +310,8 @@ void userinit(void)
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
 
-  p->state = RUNNABLE;
-
+  // p->state = RUNNABLE;
+  p->state = ACTIVE; //Q3.1
   release(&p->lock);
 }
 
@@ -338,6 +340,65 @@ int growproc(int n)
 
 // Create a new process, copying the parent.
 // Sets up child kernel stack to return as if from fork() system call.
+// int fork(void)
+// {
+//   int i, pid;
+//   struct proc *np;
+//   struct proc *p = myproc();
+
+//   // Allocate process.
+//   if ((np = allocproc()) == 0)
+//   {
+//     return -1;
+//   }
+
+//   // Copy user memory from parent to child.
+//   if (uvmcopy(p->pagetable, np->pagetable, p->sz) < 0)
+//   {
+//     freeproc(np);
+//     release(&np->lock);
+//     return -1;
+//   }
+//   np->sz = p->sz;
+
+//   // copy saved user registers.
+//   *(np->trapframe) = *(p->trapframe);
+
+//   // Cause fork to return 0 in the child.
+//   np->trapframe->a0 = 0;
+
+//   //TASK 2.1.2
+//   for (i = 0; i < 32; i++)
+//   {
+//     np->sigHandlers[i] = p->sigHandlers[i];
+//   }
+//   np->sigMask = p->sigMask;
+//   //
+
+//   // increment reference counts on open file descriptors.
+//   for (i = 0; i < NOFILE; i++)
+//     if (p->ofile[i])
+//       np->ofile[i] = filedup(p->ofile[i]);
+//   np->cwd = idup(p->cwd);
+
+//   safestrcpy(np->name, p->name, sizeof(p->name));
+
+//   pid = np->pid;
+
+//   release(&np->lock);
+
+//   acquire(&wait_lock);
+//   np->parent = p;
+//   release(&wait_lock);
+
+//   acquire(&np->lock);
+//   // np->state = RUNNABLE;
+//   np->state = ACTIVE; // Q3.1
+
+//   release(&np->lock);
+
+//   return pid;
+// }
 int fork(void)
 {
   int i, pid;
@@ -390,11 +451,16 @@ int fork(void)
   release(&wait_lock);
 
   acquire(&np->lock);
-  np->state = RUNNABLE;
+  // np->state = RUNNABLE;
+  np->state = ACTIVE; // Q3.1
+
   release(&np->lock);
 
   return pid;
 }
+
+
+
 
 // Pass p's abandoned children to init.
 // Caller must hold wait_lock.
@@ -519,10 +585,47 @@ int wait(uint64 addr)
 //  - swtch to start running that process.
 //  - eventually that process transfers control
 //    via swtch back to the scheduler.
+
+// void scheduler(void)
+// {
+//   struct proc *p;
+//   struct cpu *c = mycpu();
+
+//   c->proc = 0;
+//   for (;;)
+//   {
+//     // Avoid deadlock by ensuring that devices can interrupt.
+//     intr_on();
+
+//     for (p = proc; p < &proc[NPROC]; p++)
+//     {
+//       acquire(&p->lock);
+//       if (p->state == RUNNABLE)
+//       {
+//         // Switch to chosen process.  It is the process's job
+//         // to release its lock and then reacquire it
+//         // before jumping back to us.
+//         p->state = RUNNING;
+//         c->proc = p;
+//         swtch(&c->context, &p->context);
+
+//         // Process is done running for now.
+//         // It should have changed its p->state before coming back.
+//         c->proc = 0;
+//       }
+//       release(&p->lock);
+//     }
+//   }
+// }
+
+// Q3.1 >>>
+
 void scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
+
+  struct thread* th;
 
   c->proc = 0;
   for (;;)
@@ -533,23 +636,37 @@ void scheduler(void)
     for (p = proc; p < &proc[NPROC]; p++)
     {
       acquire(&p->lock);
-      if (p->state == RUNNABLE)
+      if (p->state == ACTIVE)
       {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
         c->proc = p;
-        swtch(&c->context, &p->context);
+        
+        for (th = p->threads; th < &p->threads[NTHREAD]; th++)
+        {
+          acquire(&th->lock);
+          if (p->state == RUNNABLE)
+          {
+            // Switch to chosen thread.  It is the process's job
+            // to release its lock and then reacquire it
+            // before jumping back to us.
+            th->state = RUNNING;
+            c->thread = th;
+            swtch(&c->context, &th->context);
 
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
+            // thread is done running for now.
+            // It should have changed its th->state before coming back.
+            c->thread = 0;
+          }
+          release(&th->lock);
+        }
+
         c->proc = 0;
       }
       release(&p->lock);
     }
   }
 }
+// <<< END
+
 
 // Switch to scheduler.  Must hold only p->lock
 // and have changed proc->state. Saves and restores
