@@ -124,7 +124,8 @@ initthreadstable (struct proc *p){
 
   for (th = p->threads; th < &p->threads[NTHREAD]; th++)
   { 
-    th->state = UNUSED_THREAD;
+    th->procparent = p;         // set parent
+    th->state = UNUSED_THREAD;  // set state
   }
   return 1; 
 }
@@ -422,20 +423,16 @@ int fork(void)
   }
   np->sz = p->sz;
 
+  acquire(&wait_lock); //TODO: Check wich lock should be accuired!
+
   // copy saved user registers.
-  *(np->threads)[0]->trapframe) = *(th->trapframe);
-
+  *np->threads[0].trapframe = *th->trapframe;
   // Cause fork to return 0 in the child.
-  np->threads[0]->trapframe->a0 = 0;
+  np->threads[0].trapframe->a0 = 0;
+  
+  release(&wait_lock); //TODO: Check wich lock should be accuired!
 
-  //TASK 2.1.2
-  for (i = 0; i < 32; i++)
-  {
-    np->sigHandlers[i] = p->sigHandlers[i];
-  }
-  np->sigMask = p->sigMask;
-  //
-
+  
   // increment reference counts on open file descriptors.
   for (i = 0; i < NOFILE; i++)
     if (p->ofile[i])
@@ -449,14 +446,29 @@ int fork(void)
   release(&np->lock);
 
   acquire(&wait_lock);
+  // // copy saved user registers.
+  // *np->threads[0].trapframe = *th->trapframe; //TODO: Check wich lock should be accuired!
+  // // Cause fork to return 0 in the child.
+  // np->threads[0].trapframe->a0 = 0; //TODO: Check wich lock should be accuired!
   np->parent = p;
   release(&wait_lock);
 
   acquire(&np->lock);
-  // np->state = RUNNABLE;
-  np->state = ACTIVE; // Q3.1
 
+  np->state = ACTIVE; // Q3.1
+  np->threads[0].state = RUNNABLE;
+
+  //TASK 2.1.2
+  for (i = 0; i < 32; i++)
+  {
+    // TODO: what about the masks?
+    np->sigHandlers[i] = p->sigHandlers[i];
+    
+  }
+  np->sigMask = p->sigMask;
+  
   release(&np->lock);
+
 
   return pid;
 }

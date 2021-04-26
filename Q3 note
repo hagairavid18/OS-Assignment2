@@ -1,0 +1,13 @@
+Q3.1:
+Obvious places to update:
+
+1. allocproc - need to finish
+2. fork - k
+3. exec
+4. exit
+5. growproc
+
+
+need to check:
+
+1. free roc?
