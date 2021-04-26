@@ -18,6 +18,9 @@ struct proc *initproc;
 
 int nextpid = 1;
 struct spinlock pid_lock;
+// Q3.1
+int nexttid = 1; 
+struct spinlock tid_lock;
 
 extern void forkret(void);
 static void freeproc(struct proc *p);
@@ -114,7 +117,7 @@ initthreadstable (struct proc *p){
   { 
     th->procparent = p;         // set parent
     th->state = UNUSED_THREAD;  // set state
-    th->tid = 0;               // Set id to default;
+    th->tid = 0;                // Set id to default;
   }
   return 1; 
 }
@@ -123,24 +126,24 @@ initthreadstable (struct proc *p){
 // (due to the similarities of allocproc() and kthread_create())
 int
 initthread(struct thread *t){
+  struct proc *p = myproc(); // TODO: change to &t->procparent ?
+  t->tid = alloctid();
+  // acquire(&p->lock); // TODO: seem it is not needed
 
-  // TODO: check if needed 
+  if ((t->kstack = (uint64)kalloc()) == 0) return 0; // TODO: is the init of kstack is here? 
+
+  if ((t->trapframe = (struct trapframe *)kalloc()) == 0)
+  {
+    freeproc(&t->procparent);
+    release(&p->lock);
+    return 0;
+  }
   
   // Set up new context to start executing at forkret,
   // which returns to user space.
   memset(&t->context, 0, sizeof(t->context));
   t->context.ra = (uint64)forkret;
   t->context.sp = t->kstack + PGSIZE;
-
-
-  // t->pagetable = 0;
-  // t->sz = 0;
-  // t->pid = 0;
-  // t->parent = 0;
-  // t->name[0] = 0;
-  // t->killed = 0;
-  // t->xstate = 0;
-  // t->state = UNUSED;
 
   return 1;
 }
@@ -161,6 +164,18 @@ freethread(struct thread *th){
 
   return 1;
 
+}
+// alloc thread id (unique id, mostly for debugging)
+int alloctid()
+{
+  int tid;
+
+  acquire(&tid_lock);
+  tid = nexttid;
+  nexttid = nexttid + 1;
+  release(&tid_lock);
+
+  return tid;
 }
 
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> END
@@ -207,7 +222,7 @@ found:
   // Q3 >>>
   //TODO: finish!
 
-  if ( !initthreadstable(p) || !allocthread(&p->threads[0])) return 0;  // Initial threads table with UNUSED state & init the first thread
+  if ( !initthreadstable(p) || !initthread(&p->threads[0])) return 0;  // Initial threads table with UNUSED state & init the first thread
 
   
 
