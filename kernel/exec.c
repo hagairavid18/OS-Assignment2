@@ -19,8 +19,8 @@ exec(char *path, char **argv)
   struct inode *ip;
   struct proghdr ph;
   pagetable_t pagetable = 0, oldpagetable;
-  struct proc *p = myproc();
-
+  struct proc *p = myproc(); // TODO: Check if needed
+  struct thread * th = mythread();
   begin_op();
 
   if((ip = namei(path)) == 0){
@@ -100,7 +100,7 @@ exec(char *path, char **argv)
   // arguments to user main(argc, argv)
   // argc is returned via the system call return
   // value, which goes in a0.
-  p->trapframe->a1 = sp;
+  th->trapframe->a1 = sp; // Q3.1
 
   // Save program name for debugging.
   for(last=s=path; *s; s++)
@@ -112,9 +112,17 @@ exec(char *path, char **argv)
   oldpagetable = p->pagetable;
   p->pagetable = pagetable;
   p->sz = sz;
-  p->trapframe->epc = elf.entry;  // initial program counter = main
-  p->trapframe->sp = sp; // initial stack pointer
+  // Q3.1
+  th->trapframe->epc = elf.entry;  // initial program counter = main
+  th->trapframe->sp = sp; // initial stack pointer
+  
   proc_freepagetable(oldpagetable, oldsz);
+
+  // Q3.1
+  // Set kill to all other threads, prior execution
+  struct thread *thread; // TODO: replace with th->procparent->threads?
+  for (thread = p->threads; thread < &p->threads[NTHREAD]; thread++) if (thread != th) thread->killed = 1; 
+  
 
   //TASK 2.1.2 
   ///TODO why they wrote to check if not SIG_DFL?
@@ -126,9 +134,8 @@ exec(char *path, char **argv)
     }
     
   }
+
   
-
-
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 
  bad:

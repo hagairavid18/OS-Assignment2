@@ -92,7 +92,8 @@ myproc(void)
   return p;
 }
 
-// Q3 >>>
+// Q3 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
 // Return the current struct thread*, or zero if none.
 struct thread *
 mythread(void)
@@ -105,19 +106,6 @@ mythread(void)
   return th;
 }
 
-// initizialised first thread in initiated proc
-// retrun 0 on success, -1 otherwise
-int
-initthread (struct proc *p){
-  /*
-    TODO: implement function
-  */
-  struct thread* th = &p->threads[0];
-  th->id = 0;                         // Set first id to 0;
-
-  return 1;
-}
-
 int
 initthreadstable (struct proc *p){
   struct thread *th;
@@ -126,11 +114,56 @@ initthreadstable (struct proc *p){
   { 
     th->procparent = p;         // set parent
     th->state = UNUSED_THREAD;  // set state
+    th->tid = 0;               // Set id to default;
   }
   return 1; 
 }
 
-// <<< END
+// Unlike allocproc, it initialize a specific thread
+// (due to the similarities of allocproc() and kthread_create())
+int
+initthread(struct thread *t){
+
+  // TODO: check if needed 
+  
+  // Set up new context to start executing at forkret,
+  // which returns to user space.
+  memset(&t->context, 0, sizeof(t->context));
+  t->context.ra = (uint64)forkret;
+  t->context.sp = t->kstack + PGSIZE;
+
+
+  // t->pagetable = 0;
+  // t->sz = 0;
+  // t->pid = 0;
+  // t->parent = 0;
+  // t->name[0] = 0;
+  // t->killed = 0;
+  // t->xstate = 0;
+  // t->state = UNUSED;
+
+  return 1;
+}
+
+int
+freethread(struct thread *th){
+
+
+  if (th->trapframe) kfree((void *)th->trapframe);
+  if (th-> kstack) kfree((void *)th-> kstack);
+  
+  th->trapframe = 0;
+  th->tid = 0;
+  th->procparent = 0;
+  th->killed = 0;
+  th->xstate = 0;
+  th->state = UNUSED_THREAD;
+
+  return 1;
+
+}
+
+// >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> END
 
 int allocpid()
 {
@@ -174,18 +207,18 @@ found:
   // Q3 >>>
   //TODO: finish!
 
-  if ( !initthreadstable(p) || !initthread(p)) return 0;  // Initial threads table with UNUSED state & init the first thread
+  if ( !initthreadstable(p) || !allocthread(&p->threads[0])) return 0;  // Initial threads table with UNUSED state & init the first thread
 
-  // <<< Q3
+  
 
 
   // Allocate a trapframe page.
-  if ((p->trapframe = (struct trapframe *)kalloc()) == 0)
-  {
-    freeproc(p);
-    release(&p->lock);
-    return 0;
-  }
+  // if ((p->trapframe = (struct trapframe *)kalloc()) == 0)
+  // {
+  //   freeproc(p);
+  //   release(&p->lock);
+  //   return 0;
+  // }
 
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
@@ -194,20 +227,17 @@ found:
     freeproc(p);
     release(&p->lock);
     return 0;
-    memset
   }
 
-  // Set up new context to start executing at forkret,
-  // which returns to user space.
-  memset(&p->context, 0, sizeof(p->context));
-  p->context.ra = (uint64)forkret;
-  p->context.sp = p->kstack + PGSIZE;
+  
 
   // Q2 >>>
+  // TODO: what about mask & pending init?
+
   int i;
   for (i = 0; i < 32; i++)
   {
-    p->sigHandlers[i] = (void *)SIG_DFL;
+    p->sigHandlers[i] = (void *)SIG_DFL; // set default flag for all signals 
   }
   // <<< END
 
@@ -220,9 +250,16 @@ found:
 static void
 freeproc(struct proc *p)
 {
-  if (p->trapframe)
-    kfree((void *)p->trapframe);
-  p->trapframe = 0;
+  // Q3.1
+
+  struct thread *th;
+  // free all threads:
+  for (th = p->threads; th < &p->threads[NTHREAD]; th++)
+  { 
+    freethread(th); // clean thread
+  }
+  
+  
   if (p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
   p->pagetable = 0;
@@ -230,7 +267,7 @@ freeproc(struct proc *p)
   p->pid = 0;
   p->parent = 0;
   p->name[0] = 0;
-  p->chan = 0;
+  // p->chan = 0;
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
@@ -322,6 +359,9 @@ int growproc(int n)
 {
   uint sz;
   struct proc *p = myproc();
+  //Q3.1
+  // Preventing syncronization problems by locking on proc->lock:
+  acquire(&p->lock);
 
   sz = p->sz;
   if (n > 0)
@@ -336,6 +376,8 @@ int growproc(int n)
     sz = uvmdealloc(p->pagetable, sz, sz + n);
   }
   p->sz = sz;
+
+  release(&p->lock);
   return 0;
 }
 
@@ -498,6 +540,7 @@ void reparent(struct proc *p)
 void exit(int status)
 {
   struct proc *p = myproc();
+  struct thread * th = mythread();
 
   if (p == initproc)
     panic("init exiting");
@@ -530,6 +573,10 @@ void exit(int status)
 
   p->xstate = status;
   p->state = ZOMBIE;
+
+  // Q3.1
+  th->xstate = status;
+  th->state = ZOMBIE_THREAD;
 
   release(&wait_lock);
 

@@ -3,11 +3,14 @@ Obvious places to update:
 
 1. allocproc - need to finish
 2. fork - k
-3. exec
-4. exit
-5. growproc
+3. exec - k
+4. exit - (need to implement the killing of other threads?)
+5. growproc - k
+
+Consider all the places where multiple CPUs may access the same resource
 
 
 need to check:
 
-1. free roc?
+1. freeproc?
+2. sys_exec? 
