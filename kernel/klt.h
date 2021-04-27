@@ -31,7 +31,7 @@ struct context {
 //TODO: fix / change the statess
 enum threadstate { UNUSED_THREAD, SLEEPING, RUNNABLE, RUNNING, ZOMBIE_THREAD };
 struct thread {
-    struct spinlock *lock;
+    struct spinlock lock;
     
     // th->lock must be held when using these:
     enum threadstate state;         // thread state

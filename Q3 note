@@ -7,10 +7,11 @@ Obvious places to update:
 4. exit - (need to implement the killing of other threads?)
 5. growproc - k
 
-Consider all the places where multiple CPUs may access the same resource
+NOTE - Consider all the places where multiple CPUs may access the same resource
 
 
 need to check:
 
-1. freeproc?
-2. sys_exec? 
+1. freeproc
+2. sys_exec 
+3. swtch

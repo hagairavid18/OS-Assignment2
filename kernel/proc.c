@@ -97,6 +97,19 @@ myproc(void)
 
 // Q3 >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
+// alloc thread id (unique id, mostly for debugging)
+int alloctid()
+{
+  int tid;
+
+  acquire(&tid_lock);
+  tid = nexttid;
+  nexttid = nexttid + 1;
+  release(&tid_lock);
+
+  return tid;
+}
+
 // Return the current struct thread*, or zero if none.
 struct thread *
 mythread(void)
@@ -134,7 +147,7 @@ initthread(struct thread *t){
 
   if ((t->trapframe = (struct trapframe *)kalloc()) == 0)
   {
-    freeproc(&t->procparent);
+    freeproc(t->procparent);
     release(&p->lock);
     return 0;
   }
@@ -164,18 +177,6 @@ freethread(struct thread *th){
 
   return 1;
 
-}
-// alloc thread id (unique id, mostly for debugging)
-int alloctid()
-{
-  int tid;
-
-  acquire(&tid_lock);
-  tid = nexttid;
-  nexttid = nexttid + 1;
-  release(&tid_lock);
-
-  return tid;
 }
 
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> END
@@ -312,8 +313,9 @@ proc_pagetable(struct proc *p)
   }
 
   // map the trapframe just below TRAMPOLINE, for trampoline.S.
+  // TODO: is hreads[0] the right choice?
   if (mappages(pagetable, TRAPFRAME, PGSIZE,
-               (uint64)(p->trapframe), PTE_R | PTE_W) < 0)
+               (uint64)(p->threads[0].trapframe), PTE_R | PTE_W) < 0)
   {
     uvmunmap(pagetable, TRAMPOLINE, 1, 0);
     uvmfree(pagetable, 0);
@@ -357,8 +359,8 @@ void userinit(void)
   p->sz = PGSIZE;
 
   // prepare for the very first "return" from kernel to user.
-  p->trapframe->epc = 0;     // user program counter
-  p->trapframe->sp = PGSIZE; // user stack pointer
+  p->threads[0].trapframe->epc = 0;     // user program counter
+  p->threads[0].trapframe->sp = PGSIZE; // user stack pointer
 
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
@@ -719,7 +721,7 @@ void scheduler(void)
         for (th = p->threads; th < &p->threads[NTHREAD]; th++)
         {
           acquire(&th->lock);
-          if (p->state == RUNNABLE)
+          if (th->state == RUNNABLE)
           {
             // Switch to chosen thread.  It is the process's job
             // to release its lock and then reacquire it
@@ -755,18 +757,19 @@ void sched(void)
 {
   int intena;
   struct proc *p = myproc();
+  struct thread *t = mythread();
 
   if (!holding(&p->lock))
     panic("sched p->lock");
   if (mycpu()->noff != 1)
     panic("sched locks");
-  if (p->state == RUNNING)
+  if (t->state == RUNNING)
     panic("sched running");
   if (intr_get())
     panic("sched interruptible");
 
   intena = mycpu()->intena;
-  swtch(&p->context, &mycpu()->context);
+  swtch(&t->context, &mycpu()->context);
   mycpu()->intena = intena;
 }
 
@@ -805,7 +808,10 @@ void forkret(void)
 // Reacquires lock when awakened.
 void sleep(void *chan, struct spinlock *lk)
 {
-  struct proc *p = myproc();
+
+  // Q3.1 - changed from proc to t
+  struct thread *t =  mythread(); 
+
 
   // Must acquire p->lock in order to
   // change p->state and then call sched.
@@ -814,20 +820,20 @@ void sleep(void *chan, struct spinlock *lk)
   // (wakeup locks p->lock),
   // so it's okay to release lk.
 
-  acquire(&p->lock); //DOC: sleeplock1
+  acquire(&t->lock); //DOC: sleeplock1
   release(lk);
 
   // Go to sleep.
-  p->chan = chan;
-  p->state = SLEEPING;
+  t->chan = chan;
+  t->state = SLEEPING;
 
   sched();
 
   // Tidy up.
-  p->chan = 0;
+  t->chan = 0;
 
   // Reacquire original lock.
-  release(&p->lock);
+  release(&t->lock);
   acquire(lk);
 }
 
@@ -835,18 +841,29 @@ void sleep(void *chan, struct spinlock *lk)
 // Must be called without any p->lock.
 void wakeup(void *chan)
 {
+  /*
+  Q3.1:
+  Due to the thread implementation, an inner iteration is added for each proccess,
+  waking up each thread sleeping on the channel
+  */
+  struct thread *t;
   struct proc *p;
 
   for (p = proc; p < &proc[NPROC]; p++)
   {
-    if (p != myproc())
+    if (p != myproc() && p->state == ACTIVE)
     {
       acquire(&p->lock);
-      if (p->state == SLEEPING && p->chan == chan)
-      {
-        p->state = RUNNABLE;
+
+      for (t = p->threads; t < &p->threads[NTHREAD]; t++)
+      { 
+        acquire(&t->lock);
+        if (t->state == SLEEPING && t->chan == chan)
+        {
+          t->state = RUNNABLE;
+        }
+        release(&t->lock);
       }
-      release(&p->lock);
     }
   }
 }
