@@ -36,6 +36,8 @@ trapinithart(void)
 void
 usertrap(void)
 {
+
+  // TODO: each killed - is it t or p? 
   int which_dev = 0;
 
   if((r_sstatus() & SSTATUS_SPP) != 0)
@@ -46,9 +48,10 @@ usertrap(void)
   w_stvec((uint64)kernelvec);
 
   struct proc *p = myproc();
+  struct thread *t = mythread();
   
   // save user program counter.
-  p->trapframe->epc = r_sepc();
+  t->trapframe->epc = r_sepc();
   
   if(r_scause() == 8){
     // system call
@@ -58,7 +61,7 @@ usertrap(void)
 
     // sepc points to the ecall instruction,
     // but we want to return to the next instruction.
-    p->trapframe->epc += 4;
+    t->trapframe->epc += 4;
 
     // an interrupt will change sstatus &c registers,
     // so don't enable until done with those registers.
@@ -90,6 +93,7 @@ void
 usertrapret(void)
 {
   struct proc *p = myproc();
+  struct thread *t = mythread();
   //Task 2.4
   
 
@@ -103,10 +107,10 @@ usertrapret(void)
 
   // set up trapframe values that uservec will need when
   // the process next re-enters the kernel.
-  p->trapframe->kernel_satp = r_satp();         // kernel page table
-  p->trapframe->kernel_sp = p->kstack + PGSIZE; // process's kernel stack
-  p->trapframe->kernel_trap = (uint64)usertrap;
-  p->trapframe->kernel_hartid = r_tp();         // hartid for cpuid()
+  t->trapframe->kernel_satp = r_satp();         // kernel page table
+  t->trapframe->kernel_sp = p->kstack + PGSIZE; // process's kernel stack
+  t->trapframe->kernel_trap = (uint64)usertrap;
+  t->trapframe->kernel_hartid = r_tp();         // hartid for cpuid()
 
   // set up the registers that trampoline.S's sret will use
   // to get to user space.
@@ -117,11 +121,11 @@ usertrapret(void)
   x |= SSTATUS_SPIE; // enable interrupts in user mode
   w_sstatus(x);
 
-
-handleSignal();
+  // Q2.4 - handle the pending signals, if there's any
+  handleSignal();
 
   // set S Exception Program Counter to the saved user pc.
-  w_sepc(p->trapframe->epc);
+  w_sepc(t->trapframe->epc);
 
 
   
@@ -159,7 +163,8 @@ kerneltrap()
   }
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING)
+  // Q3.1: TODO: is the "myproc() != 0 && myproc()->state == ACTIVE" needed?
+  if(which_dev == 2 && myproc() != 0 && myproc()->state == ACTIVE && myproc() != 0 && mythread()->state == RUNNING )
     yield();
 
   // the yield() may have caused some traps to occur,

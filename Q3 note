@@ -12,6 +12,5 @@ NOTE - Consider all the places where multiple CPUs may access the same resource
 
 need to check:
 
-1. freeproc
+1. freeproc - k
 2. sys_exec 
-3. swtch

@@ -270,6 +270,7 @@ freeproc(struct proc *p)
 
   struct thread *th;
   // free all threads:
+  // TODO: should I acquire each thread?
   for (th = p->threads; th < &p->threads[NTHREAD]; th++)
   { 
     freethread(th); // clean thread
@@ -892,11 +893,34 @@ int kill(int pid, int signum)
 
       p->pendingSigs = (p->pendingSigs | sig);
 
-      if (p->state == SLEEPING)
+      // Q3.1: changed implementation
+      // Insure at least 1 thread won't be blocked / sleeping, to handle the signal
+      
+      // if (p->state == SLEEPING)
+      // {
+      //   // Wake process from sleep().
+      //   p->state = RUNNABLE;
+      // }
+
+      // TODO: watch out from deadlocks (what happens if it sends signal to itself?)
+      struct thread *t;
+      for (t = p->threads; t < &p->threads[NTHREAD]; t++)
       {
-        // Wake process from sleep().
-        p->state = RUNNABLE;
-      }
+        if (t == mythread()) break; //TODO: CHECK LINE!
+
+        acquire(&t->lock);
+        
+        if (t->state == RUNNABLE || t->state == RUNNING) break;
+        
+        else if (t->state == SLEEPING)
+        {
+          // Wake one thread from sleep().
+          t->state = RUNNABLE;
+          break;
+        }
+        release(&t->lock);
+      }      
+      
       release(&p->lock);
       return 0;
     }
@@ -1002,12 +1026,14 @@ void sigret(void)
 {
   printf("in sigret\n");
   struct proc *p = myproc();
+  struct thread *t = mythread();
+
   //retreive back our original trapframe and original process's mask
-  copyin(p->pagetable,(char *)p->trapframe, (uint64)p->usrTFB,sizeof(struct trapframe));
+  copyin(p->pagetable,(char *)t->trapframe, (uint64)p->usrTFB,sizeof(struct trapframe));
   p->sigMask = p->maskB;
 
   //resore satck state as before handeling the signals
-  p->trapframe->sp += sizeof(struct trapframe);
+  t->trapframe->sp += sizeof(struct trapframe);
   p->handleingsignal = 0;
 
 }
@@ -1034,7 +1060,10 @@ void handleSignal()
 
   struct proc *p;
   p = myproc();
-  if ((p != 0 )& (p->handleingsignal ==0))
+
+  struct thread *t = mythread();
+
+  if ((p != 0 ) & (p->handleingsignal == 0))
   {
     // if (((tf->cs) & 3) != DPL_USER) {
     //   return;
@@ -1061,21 +1090,21 @@ void handleSignal()
         p->handleingsignal = 1;
 
         //make a space on user's stack to store the curr trapframe and copy
-        p->trapframe->sp -= sizeof(struct trapframe);
-        p->usrTFB = (struct trapframe* )(p->trapframe->sp);
-        copyout(p->pagetable, (uint64)p->usrTFB, (char *)p->trapframe, sizeof(struct trapframe));
+        t->trapframe->sp -= sizeof(struct trapframe);
+        p->usrTFB = (struct trapframe* )(t->trapframe->sp);
+        copyout(p->pagetable, (uint64)p->usrTFB, (char *)t->trapframe, sizeof(struct trapframe));
 
         //calculate the injected function size, make space on top of user's stack and copy the system call sigret call .
         uint64 size = (uint64)&sigret_call_end - (uint64)&sigret_call_start;
-        p->trapframe->sp -= size;
-        copyout(p->pagetable, (uint64)p->trapframe->sp, (char *)&sigret_call_start, size);
+        t->trapframe->sp -= size;
+        copyout(p->pagetable, (uint64)t->trapframe->sp, (char *)&sigret_call_start, size);
 
         //store argument for signal handler function, we want to return to the place where we injected the system call
-        p->trapframe->a0 = i;
-        p->trapframe->ra = p->trapframe->sp;
+        t->trapframe->a0 = i;
+        t->trapframe->ra = t->trapframe->sp;
          
         //finally change the program counter to point on the signal handler function gave by the user and turn of this ignal bit
-        p->trapframe->epc = (uint64)p->sigHandlers[i];
+        t->trapframe->epc = (uint64)p->sigHandlers[i];
         p->pendingSigs ^= (1 << i); // Remove the signal from the pending_signals
           
         return;

@@ -120,6 +120,8 @@ int             sigaction (int signum, const struct sigaction *act, struct sigac
 void            sigret (void);
 //Task 2.4
 void            handleSignal(void);
+// Q3.1
+struct thread*    mythread(void);
 
 // Q2.4
 // sigret_bride.S
