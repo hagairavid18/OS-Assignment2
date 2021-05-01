@@ -121,7 +121,12 @@ void            sigret (void);
 //Task 2.4
 void            handleSignal(void);
 // Q3.1
-struct thread*    mythread(void);
+struct thread*  mythread(void);
+// Q3.2 
+int             kthread_create ( void ( *start_func ) ( ) , void *stack );
+int             kthread_id(void);
+void            kthread_exit(int);
+int             kthread_join(int, int*);
 
 // Q2.4
 // sigret_bride.S

@@ -139,3 +139,69 @@ sys_sigret(void){
   return 0;
 
 }
+
+// <<<<<<<<<<< TASK 3.2
+
+uint64
+sys_kthread_create (void) {
+  // void ( *start_func ) ( ) , void *stack
+  /* 
+    TODO: implement function
+  */
+
+  uint64 start_func;
+  uint64 stack;
+  if(argaddr(0, &start_func) < 0)
+    return -1;
+  if(argaddr(1, &stack) < 0)
+    return -1;
+  
+  return kthread_create((void *) start_func, (void *) stack);
+}
+
+
+uint64
+sys_kthread_id(void)
+{
+  // (void)
+  /*  
+    TODO: implement function
+  */
+
+  return kthread_id();
+
+}
+
+
+uint64
+sys_kthread_exit(void)
+{
+  int status;
+  if(argint(0, &status) < 0)
+    return -1;
+  
+  kthread_exit(status);
+
+  return 0;
+}
+
+uint64
+sys_kthread_join(void) 
+{
+  //(int thread_id, int* status)
+  /* 
+    TODO: implement function
+  */
+
+  int thread_id;
+  uint64 status;
+  if(argint(0, &thread_id) < 0)
+    return -1;
+  if(argaddr(1, &status) < 0)
+    return -1;
+
+  return kthread_join(thread_id, (int *) status);
+
+}
+
+// >>>>>>>>>>>> END

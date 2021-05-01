@@ -112,6 +112,11 @@ extern uint64 sys_sigprocmask(void);
 extern uint64 sys_sigaction(void);
 //TASK 2.1.4
 extern uint64 sys_sigret(void);
+// TASK 3.2
+extern uint64 sys_kthread_create (void);
+extern uint64 sys_kthread_id(void);
+extern uint64 sys_kthread_join(void);
+extern uint64 sys_kthread_exit(void);
 
 static uint64 (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -141,6 +146,11 @@ static uint64 (*syscalls[])(void) = {
 [SYS_sigaction]   sys_sigaction,
 //TASK 2.1.5
 [SYS_sigret]   sys_sigret,
+//TASK 3.2
+[SYS_kthread_create]  sys_kthread_create,
+[SYS_kthread_id]  sys_kthread_id,
+[SYS_kthread_join]  sys_kthread_join,
+[SYS_kthread_exit] sys_kthread_exit,
 };
 
 void
