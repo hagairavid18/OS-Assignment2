@@ -511,17 +511,17 @@ int fork(void)
 
   release(&np->lock);
 
-  printf("acquire fork()\n");
+  printf("acquire wait_lock fork()\n");
   acquire(&wait_lock);
   // // copy saved user registers.
   // *np->threads[0].trapframe = *th->trapframe; //TODO: Check wich lock should be accuired!
   // // Cause fork to return 0 in the child.
   // np->threads[0].trapframe->a0 = 0; //TODO: Check wich lock should be accuired!
-  printf("release fork()\n");
+  printf("release wait_lock fork()\n");
   np->parent = p;
   release(&wait_lock);
 
-  printf("acquire fork()\n");
+  printf("acquire fork() proc=%p\n",np);
   acquire(&np->lock);
 
   np->state = ACTIVE;              // Q3.1
@@ -725,18 +725,20 @@ void scheduler(void)
 
     for (p = proc; p < &proc[NPROC]; p++)
     {
-      printf("acquire scheduler() 734 proc=%p\n", p);
-      acquire(&p->lock);
+      // printf("acquire scheduler() 734 proc=%p\n", p);
+      // acquire(&p->lock);
       if (p->state == ACTIVE)
       {
+        printf("\nfound ACTIVE proccess %p\n",p);
         c->proc = p;
 
         for (th = p->threads; th < &p->threads[NTHREAD]; th++)
         {
-          printf("acquire scheduler() 742 thread=%p\n", th);
+          printf("  acquire scheduler() 742 thread=%p\n", th);
           acquire(&th->lock);
           if (th->state == RUNNABLE)
           {
+            printf("    found RUNNABLE thread %p\n",th);
             // Switch to chosen thread.  It is the process's job
             // to release its lock and then reacquire it
             // before jumping back to us.
@@ -747,17 +749,21 @@ void scheduler(void)
             // thread is done running for now.
             // It should have changed its th->state before coming back.
             c->thread = 0;
+            printf("    done with RUNNABLE thread %p\n",th);
           }
-          printf("release scheduler() 757 thread=%p\n", th);
+          printf("  release scheduler() 757 thread=%p\n", th);
           release(&th->lock);
+          // printf("release 2\n");
         }
-
         c->proc = 0;
+        printf("done with ACTIVE proccess %p\n\n",p);
       }
-      printf("release scheduler() 763 proc=%p\n", p);
-      release(&p->lock);
+      // printf("release scheduler() 763 proc=%p\n", p);
+      // release(&p->lock);
     }
   }
+
+  printf("sheduler() END");
 }
 // <<< END
 
@@ -812,8 +818,8 @@ void forkret(void)
   // Still holding p->lock from scheduler.
   printf("release forkret() 822 thread=%p\n", mythread());
   release(&mythread()->lock);
-  printf("release forkret() 824 proc=%p\n",myproc());
-  release(&myproc()->lock);
+  // printf("release forkret() 824 proc=%p\n",myproc());
+  // release(&myproc()->lock);
 
   if (first)
   {
