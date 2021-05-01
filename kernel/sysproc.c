@@ -133,7 +133,7 @@ sys_sigaction(void){
 
 uint64
 sys_sigret(void){
-  printf("insyscall sigret\n");
+  //printf("insyscall sigret\n");
   //TODO complete
   sigret(); 
   return 0;

@@ -320,6 +320,7 @@ int fork(void)
   for (i = 0; i < 32; i++)
   {
     np->sigHandlers[i] = p->sigHandlers[i];
+    np->handlersmasks[i] = p->handlersmasks[i];
   }
   np->sigMask = p->sigMask;
   //
@@ -711,29 +712,54 @@ void procdump(void)
 //TASK 2.1.3
 uint sigprocmask(uint sigmask)
 {
-  struct proc *p = myproc();
+   struct proc *p = myproc();
   uint prev = p->sigMask;
-  p->sigMask = sigmask;
+  //In sigprocmask, It is not possible to block SIGKILL or SIGSTOP. Attempts to do so are silently ignored.
+  //In this case, you should not update the process signal mask, but return the old (and current) mask.
+
+  if ((sigmask & 1 << SIGKILL)==0 && (sigmask & 1 << SIGSTOP)==0){
+    p->sigMask = sigmask;
+  }
+ 
+  
   return prev;
 }
 
 //TASK 2.1.4
 int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
 {
+  struct proc *p = myproc();
+  int new_mask;
+
   // check whether it is a valid act changing & act is not null
-  if (signum == SIGKILL || signum == SIGSTOP || act == 0)
+  if (signum == SIGKILL || signum == SIGSTOP  || signum > 31 || signum < 0)
   {
     return -1;
   }
-  struct proc *p = myproc();
+  // check whether the user try to block SIGKILL or SIGSTOP
 
+  //"If act is null, you should check oldact: If oldact is non-NULL, the previous action is saved in oldact."
+
+  if (act != 0)
+  {
+  
+  
+  copyin(p->pagetable, (char *)&new_mask, (uint64)&act->sigmask, sizeof(act->sigmask));
+  if (new_mask & 1 << SIGKILL || new_mask & 1 << SIGSTOP)
+  {
+    return -1;
+  }
+  }
+  // copyout previes act
   if (oldact != 0)
   {
     copyout(p->pagetable, (uint64)&oldact->sa_handler, (char *)&p->sigHandlers[signum], sizeof(p->sigHandlers[signum]));
     copyout(p->pagetable, (uint64)&oldact->sigmask, (char *)&p->handlersmasks[signum], sizeof(p->sigMask));
   }
+  if (act != 0){
   copyin(p->pagetable, (char *)&p->sigHandlers[signum], (uint64)&act->sa_handler, sizeof(act->sa_handler));
-  copyin(p->pagetable, (char *)&p->handlersmasks[signum], (uint64)&act->sigmask, sizeof(act->sigmask));
+  p->handlersmasks[signum] = new_mask;
+  }
 
   return 0;
 }
@@ -741,92 +767,148 @@ int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
 //TASK 2.1.5
 void sigret(void)
 {
-  printf("in sigret\n");
+  //printf("in sigret\n");
   struct proc *p = myproc();
   //retreive back our original trapframe and original process's mask
-  copyin(p->pagetable,(char *)p->trapframe, (uint64)p->usrTFB,sizeof(struct trapframe));
+  //printf("curr epc is: %p\n", p->trapframe->epc);
+  copyin(p->pagetable, (char *)p->trapframe, (uint64)p->usrTFB, sizeof(struct trapframe));
   p->sigMask = p->maskB;
+  //printf("curr epc is: %p\n", p->trapframe->epc);
 
   //resore satck state as before handeling the signals
   p->trapframe->sp += sizeof(struct trapframe);
   p->handleingsignal = 0;
-
 }
 
 //TODO: Check if enough
 void sigstop_handler()
 {
   struct proc *p = myproc();
-  int sigcontflag = 1 << SIGCONT;
-  // if ( p->state == RUNNABLE || p->state == RUNNING || p->state == SLEEPING)
-  while ((p->pendingSigs & sigcontflag) == 0)
+
+  //By default, the process will wait to SIGCONT signal, and if you register for some signal the SIGCONT handler,
+  // it should wait for the SIGCONT signal (if its signal handler is still SIGCONT default handler), or to the newly registered signal.
+  while (1)
+  {
     yield();
+    if ((p->pendingSigs & 1 << SIGCONT) && ((p->sigMask & 1 << SIGCONT) == 0) && (p->sigHandlers[SIGCONT] == 0))
+    {
+      return;
+    }
+   
+
+      for (int i = 0; i < 32; i++)
+      {
+        if ((p->sigHandlers[i] == (void *)SIGCONT) && (p->pendingSigs & 1 << i) && ((p->sigMask & 1 << i) == 0))
+        {
+          return;
+        }
+      
+    }
+    if (p->pendingSigs & 1<<SIGKILL)
+    {
+      return;
+    }
+    
+  }
 }
 
 void sigkill_handler()
 {
+ // printf("in sigkill\n");
   struct proc *p = myproc();
   p->killed = 1;
 }
 
 void handleSignal()
 {
-  
 
   struct proc *p;
   p = myproc();
-  if ((p != 0 )& (p->handleingsignal ==0))
+  if ((p != 0) && p->handleingsignal == 0)
   {
     // if (((tf->cs) & 3) != DPL_USER) {
     //   return;
     // }
-    //printf("pending sigs to pid:%d is:%d\n",p->pid,p->pendingSigs);
     for (int i = 0; i < 32; ++i)
     {
-      if ((1 << i & p->pendingSigs) && !((1 << i) & p->sigMask) && (p->sigHandlers[i] != (void *)SIG_IGN))
+      if ((1 << i & p->pendingSigs) && !((1 << i) & p->sigMask))
       {
-        printf("found signal to deal with. number %d\n ", i);
-        if (p->sigHandlers[i] == (void *)SIG_DFL)
-        { //kernel space
-          printf("found defauld handler for signal: \n ", i);
-          if (i == SIGSTOP)
-            sigstop_handler();
-          else
-            sigkill_handler(); // includes the sigkill & default handler
-            return;
+
+        if (p->sigHandlers[i] == (void *)SIG_IGN)
+        {
+          p->pendingSigs ^= (1 << i); // Remove the signal from the pending_signals
+          return;
         }
-        else
-        { 
-        //back up the process' mask and change to its signal handler's costum mask OR the process mask
-        p->maskB = p->sigMask;
-        p->sigMask= p->handlersmasks[i] | p->sigMask;
-        p->handleingsignal = 1;
 
-        //make a space on user's stack to store the curr trapframe and copy
-        p->trapframe->sp -= sizeof(struct trapframe);
-        p->usrTFB = (struct trapframe* )(p->trapframe->sp);
-        copyout(p->pagetable, (uint64)p->usrTFB, (char *)p->trapframe, sizeof(struct trapframe));
+        //printf("found signal to deal with. number %d\n ", i);
+        //kernel space
+        //printf("found defauld handler for signal: \n ", i);
 
-        //calculate the injected function size, make space on top of user's stack and copy the system call sigret call .
-        uint64 size = (uint64)&sigret_call_end - (uint64)&sigret_call_start;
-        p->trapframe->sp -= size;
-        copyout(p->pagetable, (uint64)p->trapframe->sp, (char *)&sigret_call_start, size);
+        if (i == SIGSTOP || p->sigHandlers[i] == (void *)SIGSTOP)
+        {
+          p->maskB = p->sigMask;
+          p->sigMask = p->handlersmasks[i];
+          sigstop_handler();
+          p->sigMask = p->maskB;
+          p->pendingSigs ^= (1 << i); 
+          return;
+        }
+        else if (i == SIGKILL || p->sigHandlers[i] == (void *)SIGKILL)
+        {
+          p->maskB = p->sigMask;
+          p->sigMask = p->handlersmasks[i];
+          sigkill_handler(); 
+          p->sigMask = p->maskB;
 
-        //store argument for signal handler function, we want to return to the place where we injected the system call
-        p->trapframe->a0 = i;
-        p->trapframe->ra = p->trapframe->sp;
-         
-        //finally change the program counter to point on the signal handler function gave by the user and turn of this ignal bit
-        p->trapframe->epc = (uint64)p->sigHandlers[i];
-        p->pendingSigs ^= (1 << i); // Remove the signal from the pending_signals
-          
-        return;
+          p->pendingSigs ^= (1 << i); 
+          return;
+        }
+        else if ((i == SIGCONT && p->sigHandlers[i] == (void *)SIG_DFL) || p->sigHandlers[i] == (void *)SIGCONT)
+        {
+          p->pendingSigs ^= (1 << i); // Remove the signal from the pending_signals
+          return;
+        }
 
-          
-  
+        else if (p->sigHandlers[i] == (void *)SIG_DFL)
+        {
+          p->maskB = p->sigMask;
+          p->sigMask = p->handlersmasks[i];
+          sigkill_handler(); 
+          p->sigMask = p->maskB;
+
+          p->pendingSigs ^= (1 << i); // Remove the signal from the pending_signals
+          return;
+        }
+        else if (p->handleingsignal == 0)
+        {
+
+          //now check for kernelspace handlers setted by user.
+
+          //back up the process' mask and change to its signal handler's costum mask OR the process mask
+          p->maskB = p->sigMask;
+          p->sigMask = p->handlersmasks[i];
+          p->handleingsignal = 1;
+
+          //make a space on user's stack to store the curr trapframe and copy
+          p->trapframe->sp -= sizeof(struct trapframe);
+          p->usrTFB = (struct trapframe *)(p->trapframe->sp);
+          copyout(p->pagetable, (uint64)p->usrTFB, (char *)p->trapframe, sizeof(struct trapframe));
+
+          //calculate the injected function size, make space on top of user's stack and copy the system call sigret call .
+          uint64 size = (uint64)&sigret_call_end - (uint64)&sigret_call_start;
+          p->trapframe->sp -= size;
+          copyout(p->pagetable, (uint64)p->trapframe->sp, (char *)&sigret_call_start, size);
+
+          //store argument for signal handler function, we want to return to the place where we injected the system call
+          p->trapframe->a0 = i;
+          p->trapframe->ra = p->trapframe->sp;
+
+          //finally change the program counter to point on the signal handler function gave by the user and turn of this ignal bit
+          p->trapframe->epc = (uint64)p->sigHandlers[i];
+          p->pendingSigs ^= (1 << i); // Remove the signal from the pending_signals
+          return;
         }
       }
-
     }
   }
   return;

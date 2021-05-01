@@ -117,12 +117,12 @@ exec(char *path, char **argv)
   proc_freepagetable(oldpagetable, oldsz);
 
   //TASK 2.1.2 
-  ///TODO why they wrote to check if not SIG_DFL?
   for ( i = 0; i < 32; i++)
   {
-    if ((p->sigHandlers[i] != (void*) SIG_IGN) && (p->sigHandlers[i] != (void*) SIG_DFL))
+    if ((p->sigHandlers[i] != (void*) SIG_IGN))
     {
       p->sigHandlers[i] = (void*) SIG_DFL;
+      p->handlersmasks[i] = 0;
     }
     
   }

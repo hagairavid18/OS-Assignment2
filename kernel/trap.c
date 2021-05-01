@@ -92,6 +92,7 @@ usertrapret(void)
   struct proc *p = myproc();
   //Task 2.4
   
+  handleSignal();
 
   // we're about to switch the destination of traps from
   // kerneltrap() to usertrap(), so turn off interrupts until
@@ -118,7 +119,6 @@ usertrapret(void)
   w_sstatus(x);
 
 
-handleSignal();
 
   // set S Exception Program Counter to the saved user pc.
   w_sepc(p->trapframe->epc);

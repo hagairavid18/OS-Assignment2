@@ -5,86 +5,67 @@
 #include "kernel/fcntl.h"
 #include "kernel/syscall.h"
 
-#define NUM_OF_CHILDREN 20
-#define SIG_FLAG1 10
-#define SIG_FLAG2 20
 
-int flag1 = 0;
-int flag2 = 0;
-int flag3 = 0;
 int count = 0;
 
-void setFlag1(int);
-void setFlag2(int);
-void setFlag3(int);
+
+void dummyFunc1(int);
+void dummyFunc2(int);
+
 void incCount(int);
-void setMask(int);
 void itoa(int, char *);
 void usrKillTest(void);
 void reverse(char[]);
 
-// void killTest(){
-//   printf("starting kill test\n");
-//   int children[NUM_OF_CHILDREN];
-//   for(int i=0;i<NUM_OF_CHILDREN;++i){
-//     children[i] = fork();
-//     if(children[i]==0){while(1);exit(1);}
-//   }
-//   for(int i=0;i<NUM_OF_CHILDREN;++i){
-//     kill(children[i],SIGKILL);
-//   }
-//   for(int i=0;i<NUM_OF_CHILDREN;++i){wait(1);}
-//   printf(2,"All children killed!\n");
-// }
-
-void maskChangeTest()
+void SetMaskTest()
 {
-    printf("Starting mask change test\n");
-    uint origMask = sigprocmask((1 << 2) | (1 << 3));
-    if (origMask != 0)
+    printf("set mask change\n");
+
+    uint firstmask = sigprocmask((1 << 2) | (1 << 3));
+    if (firstmask != 0)
     {
-        printf("Original mask wasn't 0. Test failed\n");
+        printf("initial mask is'nt 0, failed\n");
         return;
     }
+    uint invalidmask = sigprocmask((1 << 9));
+    if (invalidmask != ((1 << 2) | (1 << 3)))
+    {
+        printf("failed to block masking SIGKILL, failed\n");
+        return;
+    }
+    invalidmask = sigprocmask((1 << 17));
+    if (invalidmask != ((1 << 2) | (1 << 3)))
+    {
+        printf("failed to block masking SIGSTOP, failed\n");
+        return;
+    }
+
     uint secMask = sigprocmask((1 << 2) | (1 << 3) | (1 << 4));
-    if (secMask != 12)
+    if (secMask != ((1 << 2) | (1 << 3)))
     {
-        printf("Mask wasn't changed. Test failed\n");
+        printf("Mask wasn't changed, failed\n");
         return;
     }
-    secMask = sigprocmask((1 << 2) | (1 << 3) | (1 << 4));
-    if (secMask != 28)
-    {
-        printf("Mask wasn't changed. Test failed\n");
-        return;
-    }
+
     if (fork() == 0)
     {
-        secMask = sigprocmask((1 << 2) | (1 << 3) | (1 << 4));
-        if (secMask != 28)
+        secMask = sigprocmask((1 << 2) | (1 << 3));
+        if (secMask != ((1 << 2) | (1 << 3) | (1 << 4)))
         {
             printf("Child didn't inherit father's signal mask. Test failed\n");
         }
-        // else
-        // {
-        //     char *argv[] = {"signalTest", "sigmask", 0};
-        //     if (exec(argv[0], argv) < 0)
-        //     {
-        //         printf("couldn't exec, test failed\n");
-        //         exit(1);
-        //     }
-        // }
     }
     wait((int *)0);
+    printf("passed set mask test!\n");
     sigprocmask(0);
 }
 
-void handlerChange()
+void sigactionTest()
 {
-    printf("Starting handler change test\n");
+    printf("Starting sigaction test\n");
     struct sigaction sig1;
     struct sigaction sig2;
-    sig1.sa_handler = &setFlag1;
+    sig1.sa_handler = &dummyFunc1;
     sig1.sigmask = 0;
     sig2.sa_handler = 0;
     sig2.sigmask = 0;
@@ -95,11 +76,10 @@ void handlerChange()
         printf("Original wasn't 0. failed\n");
         return;
     }
-    sig1.sa_handler = &setFlag2;
+    sig1.sa_handler = &dummyFunc2;
     sigaction(2, &sig1, &sig2);
-    printf("%p\n", sig2.sa_handler);
 
-    if (sig2.sa_handler != &setFlag1)
+    if (sig2.sa_handler != &dummyFunc1)
     {
         printf("Handler wasn't changed to custom handler, test failed\n");
         return;
@@ -111,7 +91,7 @@ void handlerChange()
 
     if (fork() == 0)
     {
-        if (sig2.sa_handler != &setFlag2)
+        if (sig2.sa_handler != &dummyFunc2)
         {
             printf("Signal handlers changed after fork. test failed\n");
             return;
@@ -122,23 +102,24 @@ void handlerChange()
     return;
 }
 
-void multipleChildrenTest()
+void userHandlerTest()
 {
     count = 0;
     int numOfSigs = 32;
     struct sigaction sig1;
     struct sigaction sig2;
-   
-    printf("%p\n",&incCount);
+
+    //printf("%p\n", &incCount);
     sig1.sa_handler = &incCount;
     sig1.sigmask = 0;
     for (int i = 0; i < numOfSigs; ++i)
     {
+        
         sigaction(i, &sig1, &sig2);
     }
-    sigaction(31, &sig1, &sig2);
-    sigaction(31, &sig1, &sig2);
-    printf("%p\n",sig2.sa_handler);
+    // sigaction(31, &sig1, &sig2);
+    // sigaction(31, &sig1, &sig2);
+    // printf("%p\n", sig2.sa_handler);
     int pid = getpid();
     for (int i = 0; i < numOfSigs; ++i)
     {
@@ -146,88 +127,94 @@ void multipleChildrenTest()
         if (child == 0)
         {
             int signum = i;
-            if (signum!=9 && signum!=17 && signum!=19){
-            kill(pid, signum);
-            printf("exited %d\n",i);
-            
+            if (signum != 9 && signum!=17)
+            {
+                kill(pid, signum);
+                //printf("exited %d\n",i);
             }
             exit(0);
         }
     }
-   for (int i = 0; i < numOfSigs; ++i)
+    for (int i = 0; i < numOfSigs; ++i)
     {
         wait((int *)0);
-        
     }
     while (1)
     {
-        if (count == numOfSigs -3 )
+        if (count == numOfSigs - 2)
         {
             printf("All signals received!\n");
             break;
         }
     }
-     
+
+    
+    printf("user handler test passed\n");
     sig1.sa_handler = 0;
     for (int i = 0; i < numOfSigs; ++i)
     {
         sigaction(i, &sig1, 0);
     }
-    printf("multiple children test passed\n");
 }
 
-// void maskChangeSignalTest(){
-//   printf(2,"Starting mask change signal test\n");
-//   signal(2,&setMask);
-//   signal(3,&setFlag3);
-//   signal(8,&setFlag2);
-//   int pid=getpid();
-//   int child=fork();
-//   if(child==0){
-//     int count=0;
-//     while(1){
-//       if(flag1){
-//         count++;
-//         flag1=0;
-//         printf(2,"sending signal to father\n");
-//         kill(pid,8);
-//       }
-//       if(count==2){
-//         exit();
-//       }
-//       if(flag3){
-//         kill(pid,8);
-//         exit();
-//       }
-//     }
-//   }
-//   printf(2,"sending signal to child\n");
-//   kill(child,2);
-//   int count=0;
-//   while(1){
-//     if(flag2){
-//       flag2=0;
-//       count++;
-//       printf(2,"received signal from child\n");
-//       printf(2,"trying to send signal again. Then sleeping for 500\n");
-//       kill(child,2);
-//       sleep(500);
-//       if(flag2){
-//         printf(2,"Test failed. Shouldn't have received signal back.\n");
-//         kill(child,SIGKILL);
-//         break;
-//       }
-//       printf(2,"did not receive signal from child, sending a different one.\n");
-//       kill(child,3);
-//       printf(2,"busy waiting for answer\n");
-//       while(!flag2);
-//       printf(2,"received signal from child.\n");
-//       wait();
-//       printf(2,"Mask change signal test passed\n");
-//       break;
-//     }
-//   }
-// }
+void signalsmaskstest()
+{
+    printf("Starting signals masks test!\n");
+    struct sigaction sig1;
+    struct sigaction sig2;
+    int ret;
+    sig1.sa_handler = &dummyFunc1;
+    if ((ret = sigaction(9, &sig1, &sig2)) != -1)
+    {
+        printf("change kill default handler, test failed\n");
+        return;
+    }
+    sig1.sigmask = 1 << 9;
+    if ((ret = sigaction(0, &sig1, &sig2)) != -1)
+    {
+        printf("setted a mask handler which blocks SIGKILL. test failed\n");
+        return;
+    }
+
+    //we will define two new signals: 5 with sigstop and 20 with sigcont. 19 will be in the mask, therewise wont cont the stop. 20 will make cont.
+    sig1.sigmask = ((1 << 19));
+    sig1.sa_handler = (void *)17;
+
+    if ((ret = sigaction(5, &sig1, &sig2)) == -1)
+    {
+        printf("sigaction failed test failed\n");
+        return;
+    }
+    sig1.sa_handler = (void *)19;
+    sigaction(20, &sig1, &sig2);
+    int child = fork();
+    if (child == 0)
+    {
+        while (1)
+        {
+            printf("r");
+        }
+    }
+    sleep(1);
+    kill(child, 5);
+    sleep(1);
+    kill(child, 19);
+    printf("should not resume running\n");
+
+    sleep(1);
+    kill(child, 20); // remove this will cause infinity loop. the father will not continue
+    printf("should resume running\n");
+    sleep(1);
+
+    kill(child,9);
+    wait((int *)0);
+    printf("passed signal mask test!\n");
+    sig1.sa_handler = (void *)0;
+    for (int i = 0; i < 32; i++)
+    {
+        sigaction(i, &sig1, 0);
+    }
+}
 
 // void communicationTest(){
 //   printf(2,"starting communication test\n");
@@ -285,32 +272,97 @@ void multipleChildrenTest()
 //   printf(2,"Multiple signals test passed\n");
 // }
 
-// void stopContTest(){
-//   int child;
-//   signal(4,&setFlag1);
-//   if((child=fork())==0){
-//     while(1){
-//       printf(2,"Running!!!\n");
-//       if(flag1){
-//         printf(2,"Received signal!\n");
-//         flag1=0;
-//       }
-//     }
-//   }
-//   sleep(5);
-//   printf(2,"Stopping child!\n");
-//   kill(child,SIGSTOP);
-//   while(!isStopped(child));
-//   printf(2,"Child stopped! Sending child a signal, sleep for 10 and then continuing the child.\n");
-//   kill(child,4);
-//   sleep(10);
-//   kill(child,SIGCONT);
-//   while(isStopped(child));
-//   kill(child,SIGKILL);
-//   wait();
-//   printf(2,"child killed!\n");
-//   printf(2,"stop cont test passed\n");
-// }
+void stopContTest1()
+{
+
+    int child1;
+    if ((child1 = fork()) == 0)
+    {
+        while (1)
+        {
+            printf("Running!!!\n");
+        }
+    }
+    sleep(1);
+
+    printf("about to stop child:\n");
+    kill(child1, 17);
+    printf("sleep for 10 seconds and then continue child:\n");
+    sleep(10);
+    printf("sleeped, now wake up child.\n");
+    kill(child1, 19);
+    printf("sleep 1 second and then kill child\n");
+    sleep(1);
+    kill(child1, 9);
+
+    wait((void *)0);
+    printf("stop cont test 1 passed\n");
+}
+
+void stopContTest2()
+{
+
+    //stop child and then continue it's running by assigntwo bits with  the defualt condhandler and stophandler.
+    struct sigaction sig1;
+    struct sigaction sig2;
+    sig1.sa_handler = (void *)19;
+    sig2.sa_handler = (void *)17;
+    sigaction(5, &sig1, 0);
+    sigaction(6, &sig2, 0);
+    int child1;
+    if ((child1 = fork()) == 0)
+    {
+        while (1)
+        {
+            printf("Running!!!\n");
+        }
+    }
+    sleep(1);
+
+    printf("about to stop child:\n");
+    kill(child1, 6);
+    printf("sleep for 10 seconds and then continue child:\n");
+    sleep(10);
+    printf("sleeped, now wake up child.\n");
+    kill(child1, 5);
+    printf("sleep 1 second and then kill child\n");
+    sleep(1);
+    kill(child1, 9);
+
+    wait((void *)0);
+    printf("stop cont test2 passed\n");
+    sig1.sa_handler = (void *)0;
+    for (int i = 0; i < 32; i++)
+    {
+        sigaction(i, &sig1, 0);
+    }
+}
+
+void stopKillTest()
+{
+
+    //stop child and then kill him while being stopped
+
+    int child1;
+    if ((child1 = fork()) == 0)
+    {
+        while (1)
+        {
+            printf("Running!!!\n");
+        }
+    }
+    sleep(1);
+
+    printf("about to stop child:\n");
+    kill(child1, 17);
+    printf("sleep for 10 seconds and then kill child:\n");
+    sleep(10);
+    printf("sleeped, now kill child.\n");
+    kill(child1, 9);
+
+    wait((void *)0);
+    printf("stop kill test passed\n");
+}
 
 // void usrKillTest() {
 //   int i, j, pid, maxNumOfDigits = 5, numOfSigs = 15;
@@ -428,41 +480,42 @@ int main(int argc, char **argv)
     //   }
     //   usrKillTest();
     //   sendSignalUsingKillProgram();
-    multipleChildrenTest();
     //   killTest();
-    //   stopContTest();
+
+
+    userHandlerTest();
+
+    // SetMaskTest();
+    // stopContTest1();
+    // stopContTest2();
+    // stopKillTest();
+    // signalsmaskstest();
+
+
+
+
+
+
     //   communicationTest();
 
-    //maskChangeTest();
     //handlerChange();
-    //   maskChangeSignalTest();
+    
     //   multipleSignalsTest();
     exit(0);
 }
 
-void setMask(int signum)
+void dummyFunc1(int signum)
 {
-    flag1 = 1;
-    sigprocmask(1 << signum);
-}
 
-void setFlag1(int signum)
+    return;
+}
+void dummyFunc2(int signum)
 {
-    flag1 = 1;
+
     return;
 }
 
-void setFlag2(int signum)
-{
-    flag2 = 1;
-    return;
-}
 
-void setFlag3(int signum)
-{
-    flag3 = 1;
-    return;
-}
 
 void incCount(int signum)
 {
