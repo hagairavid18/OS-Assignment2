@@ -121,8 +121,8 @@ usertrapret(void)
   x |= SSTATUS_SPIE; // enable interrupts in user mode
   w_sstatus(x);
 
-  // Q2.4 - handle the pending signals, if there's any
-  handleSignal();
+  // // Q2.4 - handle the pending signals, if there's any
+  // handleSignal();
 
   // set S Exception Program Counter to the saved user pc.
   w_sepc(t->trapframe->epc);

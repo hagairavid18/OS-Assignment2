@@ -102,11 +102,12 @@ int alloctid()
 {
   int tid;
 
+  printf("acquire alloctid()\n");
   acquire(&tid_lock);
   tid = nexttid;
   nexttid = nexttid + 1;
   release(&tid_lock);
-
+  printf("release alloctid()\n");
   return tid;
 }
 
@@ -149,6 +150,8 @@ initthread(struct thread *t){
   {
     freeproc(t->procparent);
     release(&p->lock);
+      printf("release initthread()\n");
+
     return 0;
   }
   
@@ -185,6 +188,7 @@ int allocpid()
 {
   int pid;
 
+  printf("acquire allocpid()\n");
   acquire(&pid_lock);
   pid = nextpid;
   nextpid = nextpid + 1;
@@ -204,6 +208,7 @@ allocproc(void)
 
   for (p = proc; p < &proc[NPROC]; p++)
   {
+    printf("acquire allocproc()\n");
     acquire(&p->lock);
     if (p->state == UNUSED)
     {
@@ -379,6 +384,8 @@ int growproc(int n)
   struct proc *p = myproc();
   //Q3.1
   // Preventing syncronization problems by locking on proc->lock:
+  printf("acquire growproc()\n");
+
   acquire(&p->lock);
 
   sz = p->sz;
@@ -483,6 +490,7 @@ int fork(void)
   }
   np->sz = p->sz;
 
+  printf("acquire fork()\n");
   acquire(&wait_lock); //TODO: Check wich lock should be accuired!
 
   // copy saved user registers.
@@ -491,6 +499,7 @@ int fork(void)
   np->threads[0].trapframe->a0 = 0;
   
   release(&wait_lock); //TODO: Check wich lock should be accuired!
+  printf("release fork()\n");
 
   
   // increment reference counts on open file descriptors.
@@ -505,14 +514,17 @@ int fork(void)
 
   release(&np->lock);
 
+  printf("acquire fork()\n");
   acquire(&wait_lock);
   // // copy saved user registers.
   // *np->threads[0].trapframe = *th->trapframe; //TODO: Check wich lock should be accuired!
   // // Cause fork to return 0 in the child.
   // np->threads[0].trapframe->a0 = 0; //TODO: Check wich lock should be accuired!
+  printf("release fork()\n");
   np->parent = p;
   release(&wait_lock);
-
+  
+  printf("acquire fork()\n");
   acquire(&np->lock);
 
   np->state = ACTIVE; // Q3.1
@@ -579,6 +591,7 @@ void exit(int status)
   end_op();
   p->cwd = 0;
 
+  printf("acquire exit()\n");
   acquire(&wait_lock);
 
   // Give any children to init.
@@ -587,6 +600,7 @@ void exit(int status)
   // Parent might be sleeping in wait().
   wakeup(p->parent);
 
+  printf("acquire exit()\n");
   acquire(&p->lock);
 
   p->xstate = status;
@@ -596,6 +610,7 @@ void exit(int status)
   th->xstate = status;
   th->state = ZOMBIE_THREAD;
 
+  printf("release exit()\n");
   release(&wait_lock);
 
   // Jump into the scheduler, never to return.
@@ -611,6 +626,7 @@ int wait(uint64 addr)
   int havekids, pid;
   struct proc *p = myproc();
 
+  printf("acquire wait()\n");
   acquire(&wait_lock);
 
   for (;;)
@@ -622,6 +638,7 @@ int wait(uint64 addr)
       if (np->parent == p)
       {
         // make sure the child isn't still in exit() or swtch().
+        printf("acquire wait()\n");
         acquire(&np->lock);
 
         havekids = 1;
@@ -714,6 +731,7 @@ void scheduler(void)
 
     for (p = proc; p < &proc[NPROC]; p++)
     {
+      // printf("acquire scheduler() 734 proc=%d\n",myproc());
       acquire(&p->lock);
       if (p->state == ACTIVE)
       {
@@ -721,6 +739,7 @@ void scheduler(void)
         
         for (th = p->threads; th < &p->threads[NTHREAD]; th++)
         {
+          // printf("acquire scheduler() 742 thread=%d\n",mythread());
           acquire(&th->lock);
           if (th->state == RUNNABLE)
           {
@@ -735,11 +754,13 @@ void scheduler(void)
             // It should have changed its th->state before coming back.
             c->thread = 0;
           }
+          // printf("release scheduler() 757 thread=%d\n", mythread());
           release(&th->lock);
         }
 
         c->proc = 0;
       }
+      // printf("release scheduler() 763 proc=%d\n",mythread());
       release(&p->lock);
     }
   }
@@ -778,9 +799,11 @@ void sched(void)
 void yield(void)
 {
   struct proc *p = myproc();
+  printf("acquire yield() 802 proc=%d\n",myproc());
   acquire(&p->lock);
   p->state = RUNNABLE;
   sched();
+  printf("release yield() 802 proc=%d\n",myproc());
   release(&p->lock);
 }
 
@@ -791,7 +814,7 @@ void forkret(void)
   static int first = 1;
 
   // Still holding p->lock from scheduler.
-  release(&myproc()->lock);
+  release(&mythread()->lock);
 
   if (first)
   {
@@ -821,7 +844,9 @@ void sleep(void *chan, struct spinlock *lk)
   // (wakeup locks p->lock),
   // so it's okay to release lk.
 
+  printf("acquire sleep() 847 thread=%d\n",mythread());
   acquire(&t->lock); //DOC: sleeplock1
+  printf("realse sleep() lk");
   release(lk);
 
   // Go to sleep.
@@ -834,7 +859,10 @@ void sleep(void *chan, struct spinlock *lk)
   t->chan = 0;
 
   // Reacquire original lock.
+  printf("acquire sleep() 862 thread=%d\n",mythread());
   release(&t->lock);
+  
+  printf("acquire sleep() lk");
   acquire(lk);
 }
 
@@ -854,17 +882,23 @@ void wakeup(void *chan)
   {
     if (p != myproc() && p->state == ACTIVE)
     {
+      // printf("acquire wakeup() 885 proc=%d\n",myproc());
       acquire(&p->lock);
 
       for (t = p->threads; t < &p->threads[NTHREAD]; t++)
       { 
+        // printf("acquire wakeup() 890 thread=%d\n",mythread());
         acquire(&t->lock);
         if (t->state == SLEEPING && t->chan == chan)
         {
           t->state = RUNNABLE;
         }
+        // printf("release wakeup() 896 thread=%d\n",mythread());
         release(&t->lock);
       }
+
+      // printf("release wakeup() 900 proc=%d\n",myproc());
+      release(&p->lock); //TODO: added 30.4, not sure if needed
     }
   }
 }
@@ -883,6 +917,7 @@ int kill(int pid, int signum)
   for (p = proc; p < &proc[NPROC]; p++)
   {
 
+    printf("acquire kill() 920 proc=%d\n",myproc());
     acquire(&p->lock);
     if (p->pid == pid)
     {
@@ -908,6 +943,7 @@ int kill(int pid, int signum)
       {
         if (t == mythread()) break; //TODO: CHECK LINE!
 
+        printf("acquire kill() 946 %d\n",mythread());
         acquire(&t->lock);
         
         if (t->state == RUNNABLE || t->state == RUNNING) break;
@@ -918,12 +954,15 @@ int kill(int pid, int signum)
           t->state = RUNNABLE;
           break;
         }
+        printf("release kill() 957 thread%d\n",mythread());
         release(&t->lock);
       }      
       
+      printf("release kill() 962 thread%d\n",myproc());
       release(&p->lock);
       return 0;
     }
+    printf("release kill() 965 proc=%d\n",myproc());
     release(&p->lock);
   }
   return -1;
