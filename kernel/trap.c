@@ -36,6 +36,7 @@ trapinithart(void)
 void
 usertrap(void)
 {
+         //printf("in user trap, thread is: %p proc is %p\n",mythread(),myproc());//TODO delete
 
   // TODO: each killed - is it t or p? 
   int which_dev = 0;
@@ -92,7 +93,7 @@ usertrap(void)
 void
 usertrapret(void)
 {
-  struct proc *p = myproc();
+  //struct proc *p = myproc();
   struct thread *t = mythread();
   //Task 2.4
   
@@ -108,7 +109,7 @@ usertrapret(void)
   // set up trapframe values that uservec will need when
   // the process next re-enters the kernel.
   t->trapframe->kernel_satp = r_satp();         // kernel page table
-  t->trapframe->kernel_sp = p->kstack + PGSIZE; // process's kernel stack
+  t->trapframe->kernel_sp = t->kstack + PGSIZE; // process's kernel stack
   t->trapframe->kernel_trap = (uint64)usertrap;
   t->trapframe->kernel_hartid = r_tp();         // hartid for cpuid()
 
@@ -130,7 +131,7 @@ usertrapret(void)
 
   
   // tell trampoline.S the user page table to switch to.
-  uint64 satp = MAKE_SATP(p->pagetable);
+  uint64 satp = MAKE_SATP(t->procparent->pagetable);
 
   
 
@@ -146,6 +147,8 @@ usertrapret(void)
 void 
 kerneltrap()
 {
+         // printf("in kernel trap, thread is: %p proc is %p\n",mythread(),myproc());//TODO delete
+
   int which_dev = 0;
   uint64 sepc = r_sepc();
   uint64 sstatus = r_sstatus();
@@ -164,7 +167,7 @@ kerneltrap()
 
   // give up the CPU if this is a timer interrupt.
   // Q3.1: TODO: is the "myproc() != 0 && myproc()->state == ACTIVE" needed?
-  if(which_dev == 2 && myproc() != 0 && myproc()->state == ACTIVE && myproc() != 0 && mythread()->state == RUNNING )
+  if(which_dev == 2 && myproc() != 0 && myproc()->state == ACTIVE  && mythread()->state == RUNNING )
     yield();
 
   // the yield() may have caused some traps to occur,

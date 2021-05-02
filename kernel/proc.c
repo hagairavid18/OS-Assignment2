@@ -36,31 +36,38 @@ struct spinlock wait_lock;
 // Allocate a page for each process's kernel stack.
 // Map it high in memory, followed by an invalid
 // guard page.
-void proc_mapstacks(pagetable_t kpgtbl)
-{
+void
+proc_mapstacks(pagetable_t kpgtbl) {
   struct proc *p;
-
-  for (p = proc; p < &proc[NPROC]; p++)
-  {
-    char *pa = kalloc();
-    if (pa == 0)
-      panic("kalloc");
-    uint64 va = KSTACK((int)(p - proc));
-    kvmmap(kpgtbl, va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
+  struct thread *kt;
+  
+  for(p = proc; p < &proc[NPROC]; p++) {
+    for(kt = p->threads; kt < &p->threads[NTHREAD]; kt++){
+      char *kta = kalloc();
+      if(kta == 0)
+        panic("kalloc");
+      uint64 va = KSTACK(NTHREAD * (int) (p - proc) + (int) (kt - p->threads));
+      kvmmap(kpgtbl, va, (uint64)kta, PGSIZE, PTE_R | PTE_W);
+    }
   }
 }
 
 // initialize the proc table at boot time.
-void procinit(void)
+void
+procinit(void)
 {
   struct proc *p;
-
+  struct thread *kt;
+  
+  initlock(&tid_lock, "nextktid");
   initlock(&pid_lock, "nextpid");
   initlock(&wait_lock, "wait_lock");
-  for (p = proc; p < &proc[NPROC]; p++)
-  {
-    initlock(&p->lock, "proc");
-    p->kstack = KSTACK((int)(p - proc));
+  for(p = proc; p < &proc[NPROC]; p++) {
+      initlock(&p->lock, "proc");
+      for(kt = p->threads; kt < &p->threads[NTHREAD]; kt++){
+        initlock(&kt->lock, "kthread");
+        kt->kstack = KSTACK(NTHREAD * (int) (p - proc) + (int) (kt - p->threads));
+      }      
   }
 }
 
@@ -144,8 +151,8 @@ int initthread(struct thread *t)
   t->tid = alloctid();
   // acquire(&p->lock); // TODO: seem it is not needed
 
-  if ((t->kstack = (uint64)kalloc()) == 0)
-    return 0; // TODO: is the init of kstack is here?
+  // if ((t->kstack = (uint64)kalloc()) == 0)
+  //   return 0; // TODO: is the init of kstack is here?
 
   t->trapframe = t->procparent->trapframe;
 
@@ -163,11 +170,11 @@ int initthread(struct thread *t)
 
 int freethread(struct thread *th)
 {
-
   if (th->trapframe)
     kfree((void *)th->trapframe);
-  if (th->kstack)
-    kfree((void *)th->kstack);
+
+  // if (th->kstack)
+  //   kfree((void *)th->kstack);
 
   th->trapframe = 0;
   th->tid = 0;
@@ -256,7 +263,7 @@ found:
   //   p->sigHandlers[i] = (void *)SIG_DFL; // set default flag for all signals
   // }
   // // <<< END
-  p->threads[0].state = RUNNABLE;
+  //p->threads[0].state = RUNNABLE;
 
   // printf("release allocproc() 261 proc=%p\n",p);
   // release(&p->lock); //1.5
@@ -318,7 +325,7 @@ proc_pagetable(struct proc *p)
   // map the trapframe just below TRAMPOLINE, for trampoline.S.
   // TODO: is hreads[0] the right choice?
   if (mappages(pagetable, TRAPFRAME, PGSIZE,
-               (uint64)(p->threads[0].trapframe), PTE_R | PTE_W) < 0)
+               (uint64)(p->trapframe), PTE_R | PTE_W) < 0)
   {
     uvmunmap(pagetable, TRAMPOLINE, 1, 0);
     uvmfree(pagetable, 0);
@@ -370,6 +377,7 @@ void userinit(void)
 
   // p->state = RUNNABLE;
   p->state = ACTIVE; //Q3.1
+  p->threads[0].state = RUNNABLE;
   printf("release userinit() 377 proc=%p\n", p);
   release(&p->lock);
 }
@@ -583,7 +591,11 @@ void exit(int status)
   end_op();
   p->cwd = 0;
 
-  printf("acquire exit()\n");
+
+  //make sure all threads are killed:
+
+
+ // printf("acquire exit()\n");
   acquire(&wait_lock);
 
   // Give any children to init.
@@ -592,7 +604,7 @@ void exit(int status)
   // Parent might be sleeping in wait().
   wakeup(p->parent);
 
-  printf("acquire exit()\n");
+  //printf("acquire exit()\n");
   acquire(&p->lock);
 
   p->xstate = status;
@@ -602,8 +614,11 @@ void exit(int status)
   th->xstate = status;
   th->state = ZOMBIE_THREAD;
 
-  printf("release exit()\n");
+  //printf("release exit()\n");
   release(&p->lock);
+
+    acquire(&th->lock);
+
   release(&wait_lock);
 
   // Jump into the scheduler, never to return.
@@ -725,16 +740,15 @@ void scheduler(void)
 
     for (p = proc; p < &proc[NPROC]; p++)
     {
-      // printf("acquire scheduler() 734 proc=%p\n", p);
+       //printf("acquire scheduler() 734 proc=%p\n", p);
       // acquire(&p->lock);
       if (p->state == ACTIVE)
       {
-        printf("\nfound ACTIVE proccess %p\n",p);
-        c->proc = p;
+        //printf("\nfound ACTIVE proccess %p\n",p);
 
         for (th = p->threads; th < &p->threads[NTHREAD]; th++)
         {
-          printf("  acquire scheduler() 742 thread=%p\n", th);
+          //printf("  acquire scheduler() 742 thread=%p\n", th);
           acquire(&th->lock);
           if (th->state == RUNNABLE)
           {
@@ -744,19 +758,22 @@ void scheduler(void)
             // before jumping back to us.
             th->state = RUNNING;
             c->thread = th;
+                    c->proc = p;
+
             swtch(&c->context, &th->context);
 
             // thread is done running for now.
             // It should have changed its th->state before coming back.
             c->thread = 0;
-            printf("    done with RUNNABLE thread %p\n",th);
+                    c->proc = 0;
+
+            //printf("    done with RUNNABLE thread %p\n",th);
           }
-          printf("  release scheduler() 757 thread=%p\n", th);
+          //printf("  release scheduler() 757 thread=%p\n", th);
           release(&th->lock);
           // printf("release 2\n");
         }
-        c->proc = 0;
-        printf("done with ACTIVE proccess %p\n\n",p);
+        //printf("done with ACTIVE proccess %p\n\n",p);
       }
       // printf("release scheduler() 763 proc=%p\n", p);
       // release(&p->lock);
@@ -780,7 +797,7 @@ void sched(void)
   // struct proc *p = myproc();
   struct thread *t = mythread();
 
-  printf("DEBUG: mycpu()->noff=%d\n", mycpu()->noff);
+  //printf("DEBUG: mycpu()->noff=%d\n", mycpu()->noff);
 
   if (!holding(&t->lock))
     panic("sched p->lock");
@@ -848,9 +865,9 @@ void sleep(void *chan, struct spinlock *lk)
   // (wakeup locks p->lock),
   // so it's okay to release lk.
 
-  printf("acquire sleep() 847 thread=%p\n", mythread());
+  //printf("acquire sleep() 847 thread=%p\n on channel %p", mythread(),chan);
   acquire(&t->lock); //DOC: sleeplock1
-  printf("realse sleep() 849 lk = %s\n", lk->name);
+  //printf("realse sleep() 849 lk = %s\n", lk->name);
   release(lk);
 
   // Go to sleep.
@@ -863,10 +880,10 @@ void sleep(void *chan, struct spinlock *lk)
   t->chan = 0;
 
   // Reacquire original lock.
-  printf("acquire sleep() 862 thread=%d\n", mythread());
+  //printf("relaease sleep() 862 thread=%p\n", mythread());
   release(&t->lock);
 
-  printf("acquire sleep() lk");
+  //printf("acquire sleep() lk");
   acquire(lk);
 }
 
@@ -874,6 +891,8 @@ void sleep(void *chan, struct spinlock *lk)
 // Must be called without any p->lock.
 void wakeup(void *chan)
 {
+
+ // printf("in wake up ny thread : %p on channel %p",mythread(),chan);//TODO delete
   /*
   Q3.1:
   Due to the thread implementation, an inner iteration is added for each proccess,
@@ -886,22 +905,22 @@ void wakeup(void *chan)
   {
     if (p != myproc() && p->state == ACTIVE)
     {
-      printf("acquire wakeup() 885 proc=%p\n", p);
+      //printf("acquire wakeup() 885 proc=%p\n", p);
       acquire(&p->lock);
 
       for (t = p->threads; t < &p->threads[NTHREAD]; t++)
       {
-        printf("acquire wakeup() 890 thread=%p\n", t);
+       // printf("acquire wakeup() 890 thread=%p\n", t);
         acquire(&t->lock);
         if (t->state == SLEEPING && t->chan == chan)
         {
           t->state = RUNNABLE;
         }
-        printf("release wakeup() 896 thread=%p\n", t);
+        //printf("release wakeup() 896 thread=%p\n", t);
         release(&t->lock);
       }
 
-      printf("release wakeup() 900 proc=%p\n", p);
+      //printf("release wakeup() 900 proc=%p\n", p);
       release(&p->lock); //TODO: added 30.4, not sure if needed
     }
   }
