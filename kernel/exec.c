@@ -128,13 +128,12 @@ int exec(char *path, char **argv)
 
   proc_freepagetable(oldpagetable, oldsz);
 
-  // Q3.1
-  // Set kill to all other threads, prior execution
-  // struct thread *thread; // TODO: replace with th->procparent->threads?
-  // for (thread = p->threads; thread < &p->threads[NTHREAD]; thread++)
-  //   if (thread != th)
-  //     thread->killed = 1;
-  // printf("in exec after kill threads \n"); ///TODO: delete
+  //Q3.1
+  //Set kill to all other threads, prior execution
+  struct thread *thread; // TODO: replace with th->procparent->threads?
+  for (thread = p->threads; thread < &p->threads[NTHREAD]; thread++)
+    if (thread != th)
+      thread->killed = 1;
 
   // //TASK 2.1.2
   // ///TODO why they wrote to check if not SIG_DFL?
