@@ -13,11 +13,14 @@ int flag1 = 0;
 int flag2 = 0;
 int flag3 = 0;
 int count = 0;
+int count2 = 0;
 
 void setFlag1(int);
 void setFlag2(int);
 void setFlag3(int);
 void incCount(int);
+void incCount2(int);
+
 void setMask(int);
 void itoa(int, char *);
 void usrKillTest(void);
@@ -37,42 +40,101 @@ void reverse(char[]);
 //   printf(2,"All children killed!\n");
 // }
 
+void thread_test1()
+{
 
-void thread_test(){
-// if ( fork() == 0)
-// {
-//     printf("child\n");
-//     exit(0);
-// }
-void * stack1 = ((char *) malloc(4000 * sizeof(char)));
-void * stack2 = ((char *) malloc(4000 * sizeof(char)));
-void * stack3 = ((char *) malloc(4000 * sizeof(char)));
-void * stack4 = ((char *) malloc(4000 * sizeof(char)));
+    char *stacks[40];
+    for (int i = 0; i < 40; i++)
+    {
+        stacks[i] = ((char *)malloc(4000 * sizeof(char)));
+    }
+    //int pid[5];
+    int cid;
+    int childs1[7];
+    int childs2[7];
 
+    if ((cid = fork()) == 0)
+    {
+        for (int j = 0; j < 7; j++)
+        {
+            int child1 = kthread_create(&incCount, stacks[j]);
+            childs1[j] = child1;
+        }
+        for (int j = 0; j < 7; j++)
+        {
+            kthread_join(childs1[j]);
+        }
+        kthread_exit(0);
+    }
 
-int child1 =  kthread_create(&incCount,stack1);
-int child2 =  kthread_create(&incCount,stack2);
+    if ((cid = fork()) == 0)
+    {
+        for (int j = 0; j < 7; j++)
+        {
+            int child2 = kthread_create(&incCount, stacks[7 + j]);
+            childs2[j] = child2;
+        }
+        for (int j = 0; j < 7; j++)
+        {
+            kthread_join(childs2[j]);
+        }
+        kthread_exit(0);
+    }
 
-int child3 =  kthread_create(&incCount,stack3);
-int child4 =  kthread_create(&incCount,stack4);
+    wait((void *)0);
+    wait((void *)0);
+    exit(0);
+
+    printf("passed first thread test!");
+}
+void thread_test2()
+{
+
+    char *stacks[14];
+    for (int i = 0; i < 14; i++)
+    {
+        stacks[i] = ((char *)malloc(4000 * sizeof(char)));
+    }
+    //int pid[5];
+    int childs1[7];
+    int childs2[7];
+
+    for (int j = 0; j < 7; j++)
+    {
+        int child1 = kthread_create(&incCount, stacks[j]);
+        printf("child id is %d\n",child1);
+        childs1[j] = child1;
+    }
+    for (int j = 0; j < 7; j++)
+    {
+        kthread_join(childs1[j]);
+    }
+ for (int j = 0; j < 7; j++)
+    {
+        int child2 = kthread_create(&incCount2, stacks[7+j]);
+        printf("child id is %d\n",child2);
+        childs2[j] = child2;
+    }
+    for (int j = 0; j < 7; j++)
+    {
+        kthread_join(childs2[j]);
+    }
+    
+
+    printf("count1 is %d\n",count);
+    printf("count2  is %d\n",count2);
+    //kthread_exit(0);
+
+    
+
+    printf("passed second thread test!\n");
+}
+
+// int child3 =  kthread_create(&incCount,stack3);
+// int child4 =  kthread_create(&incCount,stack4);
 
 //printf("in tests, id of child is %d\n",child);
 //printf("func adress is %p",&incCount);
-
- kthread_join(child1);
-  kthread_join(child2);
-   kthread_join(child3);
-    kthread_join(child4);
-    kthread_exit(0);
-printf("in tests, after join %d\n",child1);
-
- exit(0);
-
-
-
-
-
-}
 
 void maskChangeTest()
 {
@@ -165,8 +227,8 @@ void multipleChildrenTest()
     int numOfSigs = 32;
     struct sigaction sig1;
     struct sigaction sig2;
-   
-    printf("%p\n",&incCount);
+
+    printf("%p\n", &incCount);
     sig1.sa_handler = &incCount;
     sig1.sigmask = 0;
     for (int i = 0; i < numOfSigs; ++i)
@@ -175,7 +237,7 @@ void multipleChildrenTest()
     }
     sigaction(31, &sig1, &sig2);
     sigaction(31, &sig1, &sig2);
-    printf("%p\n",sig2.sa_handler);
+    printf("%p\n", sig2.sa_handler);
     int pid = getpid();
     for (int i = 0; i < numOfSigs; ++i)
     {
@@ -183,28 +245,27 @@ void multipleChildrenTest()
         if (child == 0)
         {
             int signum = i;
-            if (signum!=9 && signum!=17 && signum!=19){
-            kill(pid, signum);
-            printf("exited %d\n",i);
-            
+            if (signum != 9 && signum != 17 && signum != 19)
+            {
+                kill(pid, signum);
+                printf("exited %d\n", i);
             }
             exit(0);
         }
     }
-   for (int i = 0; i < numOfSigs; ++i)
+    for (int i = 0; i < numOfSigs; ++i)
     {
         wait((int *)0);
-        
     }
     while (1)
     {
-        if (count == numOfSigs -3 )
+        if (count == numOfSigs - 3)
         {
             printf("All signals received!\n");
             break;
         }
     }
-     
+
     sig1.sa_handler = 0;
     for (int i = 0; i < numOfSigs; ++i)
     {
@@ -449,9 +510,7 @@ int main(int argc, char **argv)
         }
     }
 
-
-
- thread_test();
+    thread_test2();
 
     //     if(strcmp(argv[1],"sighandlers")==0){
     //       if(signal(3,(void*)SIG_IGN)!=(void*)SIG_IGN){
@@ -508,11 +567,18 @@ void setFlag3(int signum)
 
 void incCount(int signum)
 {
-    printf("in incount\n");
+    //printf("in incount\n");
     count++;
     kthread_exit(0);
-        printf("end of incount\n");
+    //printf("end of incount\n");
+}
 
+void incCount2(int signum)
+{
+    //printf("in incount\n");
+    count2++;
+    kthread_exit(0);
+    //printf("end of incount\n");
 }
 
 // void itoa(int num,char* str){

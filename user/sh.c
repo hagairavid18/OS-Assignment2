@@ -144,7 +144,6 @@ getcmd(char *buf, int nbuf)
 int
 main(void)
 {
-  printf("in sh\n");//TODO delete
   static char buf[100];
   int fd;
 
@@ -155,7 +154,6 @@ main(void)
       break;
     }
   }
-        printf("after open in sh\n");//TODO delete
 
   // Read and run input commands.
   while(getcmd(buf, sizeof(buf)) >= 0){
@@ -166,15 +164,12 @@ main(void)
         fprintf(2, "cannot cd %s\n", buf+3);
       continue;
     }
-            printf("after get cmd in sh\n");//TODO delete
 
     if(fork1() == 0)
       runcmd(parsecmd(buf));
-        printf("before wait in sh\n");//TODO delete
 
     wait(0);
   }
-          printf("before exit in sh\n");//TODO delete
 
   exit(0);
 }

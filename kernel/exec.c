@@ -11,8 +11,7 @@ static int loadseg(pde_t *pgdir, uint64 addr, struct inode *ip, uint offset, uin
 
 int exec(char *path, char **argv)
 {
-  printf("in exec\n"); ///TODO: delete
-  printf("path is: %s\n", path);
+ 
 
   char *s, *last;
   int i, off;
@@ -144,7 +143,6 @@ int exec(char *path, char **argv)
   //     p->sigHandlers[i] = (void *)SIG_DFL;
   //   }
   // }
-            printf("in exec before return \n"); ///TODO: delete
 
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 
