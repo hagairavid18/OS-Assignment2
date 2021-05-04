@@ -138,8 +138,8 @@ usertrapret(void)
   // jump to trampoline.S at the top of memory, which 
   // switches to the user page table, restores user registers,
   // and switches to user mode with sret.
-  uint64 fn = TRAMPOLINE + (userret - trampoline);
-  ((void (*)(uint64,uint64))fn)(TRAPFRAME, satp);
+  uint64 fn = TRAMPOLINE + (userret - trampoline );
+  ((void (*)(uint64,uint64))fn)(TRAPFRAME+ (uint64)(t->index * sizeof(struct trapframe)) , satp);
 }
 
 // interrupts and exceptions from kernel code go here via kernelvec,

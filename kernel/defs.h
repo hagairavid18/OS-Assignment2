@@ -126,7 +126,7 @@ struct thread*  mythread(void);
 int             kthread_create ( void ( *start_func ) ( ) , void *stack );
 int             kthread_id(void);
 void            kthread_exit(int);
-int             kthread_join(int, int*);
+int             kthread_join(int);
 
 // Q2.4
 // sigret_bride.S

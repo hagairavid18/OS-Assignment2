@@ -37,10 +37,47 @@ void reverse(char[]);
 //   printf(2,"All children killed!\n");
 // }
 
+
+void thread_test(){
+// if ( fork() == 0)
+// {
+//     printf("child\n");
+//     exit(0);
+// }
+void * stack1 = ((char *) malloc(4000 * sizeof(char)));
+void * stack2 = ((char *) malloc(4000 * sizeof(char)));
+void * stack3 = ((char *) malloc(4000 * sizeof(char)));
+void * stack4 = ((char *) malloc(4000 * sizeof(char)));
+
+
+int child1 =  kthread_create(&incCount,stack1);
+int child2 =  kthread_create(&incCount,stack2);
+
+int child3 =  kthread_create(&incCount,stack3);
+int child4 =  kthread_create(&incCount,stack4);
+
+//printf("in tests, id of child is %d\n",child);
+//printf("func adress is %p",&incCount);
+
+ kthread_join(child1);
+  kthread_join(child2);
+   kthread_join(child3);
+    kthread_join(child4);
+    kthread_exit(0);
+printf("in tests, after join %d\n",child1);
+
+ exit(0);
+
+
+
+
+
+}
+
 void maskChangeTest()
 {
     printf("Starting mask change test\n");
-    uint origMask = sigprocmask((1 << 2) | (1 << 3));
+    uint origMask = ((1 << 2) | (1 << 3));
     if (origMask != 0)
     {
         printf("Original mask wasn't 0. Test failed\n");
@@ -411,6 +448,11 @@ int main(int argc, char **argv)
             exit(1);
         }
     }
+
+
+
+ thread_test();
+
     //     if(strcmp(argv[1],"sighandlers")==0){
     //       if(signal(3,(void*)SIG_IGN)!=(void*)SIG_IGN){
     //         printf(2,"SIG_IGN wasn't kept after exec. test failed\n");
@@ -428,7 +470,7 @@ int main(int argc, char **argv)
     //   }
     //   usrKillTest();
     //   sendSignalUsingKillProgram();
-    multipleChildrenTest();
+    //multipleChildrenTest();
     //   killTest();
     //   stopContTest();
     //   communicationTest();
@@ -468,6 +510,9 @@ void incCount(int signum)
 {
     printf("in incount\n");
     count++;
+    kthread_exit(0);
+        printf("end of incount\n");
+
 }
 
 // void itoa(int num,char* str){

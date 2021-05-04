@@ -39,12 +39,14 @@ struct thread {
     int killed;                     // If non-zero, have been killed
     int xstate;                     // Exit status to be returned to parent's wait
     int tid;                         // thread id 
+    int index;                        //thread index : 0-7
 
 
     // thread_tree_lock must be held when using this:
     struct proc *procparent;        // Parent process of the thread
     struct trapframe *trapframe;    // data page for trampoline.S
     struct context context;         // swtch() here to run process
+  struct trapframe *usrTFB; 
 
 
     // these are private to the thread, so th->lock need not be held.
