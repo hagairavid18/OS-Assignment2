@@ -144,9 +144,8 @@ int initthreadstable(struct proc *p)
     t->chan = 0;
     t->index = i;
     t->procparent = p;
-    t->trapframe = (struct trapframe *)p->trapframes + i; //TODO: check if good or maybe + i*sizeof(struct trapframe)
+    t->trapframe = (struct trapframe *)p->trapframes + i; 
     t->killed = 0;
-    //t->frozen = 0;
   }
   return 0;
 }
@@ -224,6 +223,7 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
+  p->killed = 0;//TODO check. i added it
 
   // Allocate a trapframe page.
   if ((p->trapframes = kalloc()) == 0)
@@ -250,16 +250,16 @@ found:
   acquire(&p->threads[0].lock);
   initthread(&p->threads[0]);
 
-  // // Q2 >>>
-  // // TODO: what about mask & pending init?
+  // Q2 >>>
+  // TODO: what about mask & pending init?
 
-  // int i;
-  // for (i = 0; i < 32; i++)
-  // {
-  //   p->sigHandlers[i] = (void *)SIG_DFL; // set default flag for all signals
-  // }
-  // // <<< END
-  //p->threads[0].state = RUNNABLE;
+  int i;
+  for (i = 0; i < 32; i++)
+  {
+    p->sigHandlers[i] = (void *)SIG_DFL; // set default flag for all signals
+    p->handlersmasks[i] = 0;
+  }
+  // <<< END
 
   return p;
 }
@@ -384,7 +384,7 @@ int growproc(int n)
   struct proc *p = myproc();
   //Q3.1
   // Preventing syncronization problems by locking on proc->lock:
-  printf("acquire growproc() proc=%p\n", p);
+  //printf("acquire growproc() proc=%p\n", p);
   acquire(&p->lock);
 
   sz = p->sz;
@@ -401,7 +401,7 @@ int growproc(int n)
   }
   p->sz = sz;
 
-  printf("release growproc() proc=%p\n", p);
+  //printf("release growproc() proc=%p\n", p);
   release(&p->lock);
   return 0;
 }
@@ -515,11 +515,7 @@ int fork(void)
 
   //printf("acquire wait_lock fork()\n");
   acquire(&wait_lock);
-  // // copy saved user registers.
-  // *np->threads[0].trapframe = *th->trapframe; //TODO: Check wich lock should be accuired!
-  // // Cause fork to return 0 in the child.
-  // np->threads[0].trapframe->a0 = 0; //TODO: Check wich lock should be accuired!
-  //printf("release wait_lock fork()\n");
+  printf("in fork i am : %p my pid is %d my parent is %p.............\n",np,np->pid,myproc());//TODO delete
   np->parent = p;
   release(&wait_lock);
 
@@ -532,13 +528,14 @@ int fork(void)
   //TASK 2.1.2
   for (i = 0; i < 32; i++)
   {
-    // TODO: what about the masks?
     np->sigHandlers[i] = p->sigHandlers[i];
+    np->handlersmasks[i] = p->handlersmasks[i];
   }
   np->sigMask = p->sigMask;
   //printf("release fork() 544 proc=%p\n", np);
   release(&np->lock);
   release(&np->threads[0].lock);
+  //printf("end fork  pid is %d \n",pid);//TODO delete
 
   return pid;
 }
@@ -565,7 +562,7 @@ void reparent(struct proc *p)
 void exit(int status)
 {
 
-  printf("in exit\n"); //TODO delete
+  //printf("in exit. my parent is %p\n",myproc()->parent); //TODO delete
   struct proc *p = myproc();
   struct thread *ct = mythread();
   struct thread *t;
@@ -595,8 +592,10 @@ void exit(int status)
     if (t != ct)
     {
       acquire(&t->lock);
-      if (t->state != UNUSED_THREAD)
+      if (t->state != UNUSED_THREAD){
         t->killed = 1;
+        printf("killed someone\n");
+      }
       if (t->state == SLEEPING)
         t->state = RUNNABLE;
       release(&t->lock);
@@ -608,7 +607,9 @@ void exit(int status)
 
   // Give any children to init.
   reparent(p);
+  //printf("am i killed? %d\n",myproc()->killed);//TOTO delete
 
+  //printf("before wakeup father i am %p. channel is %p\n",myproc(),p->parent);//TOTO delete
   // Parent might be sleeping in wait().
   wakeup(p->parent);
 
@@ -622,12 +623,13 @@ void exit(int status)
   ct->xstate = status;
   ct->state = ZOMBIE_THREAD;
 
-  //printf("release exit()\n");
   release(&p->lock);
 
   acquire(&ct->lock);
 
   release(&wait_lock);
+
+  //printf("at end of exit. i am t: %p my father is %p\n",myproc(),myproc()->parent);
 
   // Jump into the scheduler, never to return.
   sched();
@@ -654,7 +656,7 @@ int wait(uint64 addr)
       if (np->parent == p)
       {
         // make sure the child isn't still in exit() or swtch().
-        //printf("acquire wait()\n");
+        //printf("found child in wait()\n");
         acquire(&np->lock);
 
         havekids = 1;
@@ -669,7 +671,10 @@ int wait(uint64 addr)
             release(&wait_lock);
             return -1;
           }
+          //printf("in wait before freeproc\n");
           freeproc(np);
+            //printf("in wait after freeproc i am %p my proc is %p\n",mythread(),myproc());
+
           release(&np->lock);
           release(&wait_lock);
           return pid;
@@ -686,6 +691,8 @@ int wait(uint64 addr)
     }
 
     // Wait for a child to exit.
+   //printf("in wait before sleep. t: %p on channel %p\n",mythread(),myproc());
+
     sleep(p, &wait_lock); //DOC: wait-sleep
   }
 }
@@ -759,7 +766,7 @@ void scheduler(void)
           acquire(&th->lock);
           if (th->state == RUNNABLE)
           {
-            //printf("    found RUNNABLE thread %p\n", th);
+           // printf("    found RUNNABLE thread %p\n", th);
             // Switch to chosen thread.  It is the process's job
             // to release its lock and then reacquire it
             // before jumping back to us.
@@ -880,7 +887,7 @@ void sleep(void *chan, struct spinlock *lk)
   // guaranteed that we won't miss any wakeup
   // (wakeup locks p->lock),
   // so it's okay to release lk.
-
+  //printf("thread %p sleep on %p\n",mythread(),chan);
   //printf("acquire sleep() 847 thread=%p\n on channel %p", mythread(),chan);
   acquire(&t->lock); //DOC: sleeplock1
   //printf("realse sleep() 849 lk = %s\n", lk->name);
@@ -908,7 +915,7 @@ void sleep(void *chan, struct spinlock *lk)
 void wakeup(void *chan)
 {
 
-  // printf("in wake up ny thread : %p on channel %p",mythread(),chan);//TODO delete
+   //printf("in wake up ny thread : %p on channel %p",mythread(),chan);//TODO delete
   /*
   Q3.1:
   Due to the thread implementation, an inner iteration is added for each proccess,
@@ -933,7 +940,7 @@ void wakeup(void *chan)
           acquire(&t->lock);
           if (t->state == SLEEPING && t->chan == chan)
           {
-            //printf("woke up thread %p\n", t);
+            //printf("woke up thread %p\n", t);//TODO delete
             t->state = RUNNABLE;
           }
           //printf("release wakeup() 896 thread=%p\n", t);
@@ -961,7 +968,7 @@ int kill(int pid, int signum)
   for (p = proc; p < &proc[NPROC]; p++)
   {
 
-    printf("acquire kill() 920 proc=%d\n", myproc());
+    //printf("acquire kill() 920 proc=%p\n", myproc());
     acquire(&p->lock);
     if (p->pid == pid)
     {
@@ -969,7 +976,7 @@ int kill(int pid, int signum)
       {
         return -1;
       }
-
+    //printf("changed pending for proc in kill\n");
       p->pendingSigs = (p->pendingSigs | sig);
 
       // Q3.1: changed implementation
@@ -988,27 +995,30 @@ int kill(int pid, int signum)
         if (t == mythread())
           break; //TODO: CHECK LINE!
 
-        printf("acquire kill() 946 %d\n", mythread());
+        //printf("acquire kill() 946 %d\n", mythread());
         acquire(&t->lock);
 
-        if (t->state == RUNNABLE || t->state == RUNNING)
+        if (t->state == RUNNABLE || t->state == RUNNING){
+        release(&t->lock);
           break;
+      }
 
         else if (t->state == SLEEPING)
         {
           // Wake one thread from sleep().
           t->state = RUNNABLE;
+          release(&t->lock);
           break;
         }
-        printf("release kill() 957 thread%d\n", mythread());
+        //printf("release kill() 957 thread%d\n", mythread());
         release(&t->lock);
       }
 
-      printf("release kill() 962 thread%d\n", myproc());
+      //printf("release kill() 962 thread%d\n", myproc());
       release(&p->lock);
       return 0;
     }
-    printf("release kill() 965 proc=%d\n", myproc());
+    //printf("release kill() 965 proc=%d\n", myproc());
     release(&p->lock);
   }
   return -1;
@@ -1079,29 +1089,54 @@ void procdump(void)
 //TASK 2.1.3
 uint sigprocmask(uint sigmask)
 {
-  struct proc *p = myproc();
+   struct proc *p = myproc();
   uint prev = p->sigMask;
-  p->sigMask = sigmask;
+  //In sigprocmask, It is not possible to block SIGKILL or SIGSTOP. Attempts to do so are silently ignored.
+  //In this case, you should not update the process signal mask, but return the old (and current) mask.
+
+  if ((sigmask & 1 << SIGKILL)==0 && (sigmask & 1 << SIGSTOP)==0){
+    p->sigMask = sigmask;
+  }
+ 
+  
   return prev;
 }
 
 //TASK 2.1.4
 int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
 {
+  struct proc *p = myproc();
+  int new_mask;
+
   // check whether it is a valid act changing & act is not null
-  if (signum == SIGKILL || signum == SIGSTOP || act == 0)
+  if (signum == SIGKILL || signum == SIGSTOP  || signum > 31 || signum < 0)
   {
     return -1;
   }
-  struct proc *p = myproc();
+  // check whether the user try to block SIGKILL or SIGSTOP
 
+  //"If act is null, you should check oldact: If oldact is non-NULL, the previous action is saved in oldact."
+
+  if (act != 0)
+  {
+  
+  
+  copyin(p->pagetable, (char *)&new_mask, (uint64)&act->sigmask, sizeof(act->sigmask));
+  if (new_mask & 1 << SIGKILL || new_mask & 1 << SIGSTOP)
+  {
+    return -1;
+  }
+  }
+  // copyout previes act
   if (oldact != 0)
   {
     copyout(p->pagetable, (uint64)&oldact->sa_handler, (char *)&p->sigHandlers[signum], sizeof(p->sigHandlers[signum]));
     copyout(p->pagetable, (uint64)&oldact->sigmask, (char *)&p->handlersmasks[signum], sizeof(p->sigMask));
   }
+  if (act != 0){
   copyin(p->pagetable, (char *)&p->sigHandlers[signum], (uint64)&act->sa_handler, sizeof(act->sa_handler));
-  copyin(p->pagetable, (char *)&p->handlersmasks[signum], (uint64)&act->sigmask, sizeof(act->sigmask));
+  p->handlersmasks[signum] = new_mask;
+  }
 
   return 0;
 }
@@ -1109,31 +1144,57 @@ int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
 //TASK 2.1.5
 void sigret(void)
 {
-  printf("in sigret\n");
+  //printf("in sigret\n");
   struct proc *p = myproc();
   struct thread *t = mythread();
-
   //retreive back our original trapframe and original process's mask
+  //printf("curr epc is: %p\n", p->trapframe->epc);
   copyin(p->pagetable, (char *)t->trapframe, (uint64)t->usrTFB, sizeof(struct trapframe));
   p->sigMask = p->maskB;
+  //printf("curr epc is: %p\n", p->trapframe->epc);
 
   //resore satck state as before handeling the signals
   t->trapframe->sp += sizeof(struct trapframe);
   p->handleingsignal = 0;
+ // printf("finished sigret\n");
 }
 
 //TODO: Check if enough
 void sigstop_handler()
 {
   struct proc *p = myproc();
-  int sigcontflag = 1 << SIGCONT;
-  // if ( p->state == RUNNABLE || p->state == RUNNING || p->state == SLEEPING)
-  while ((p->pendingSigs & sigcontflag) == 0)
+  printf("in sigstop\n");
+
+  //By default, the process will wait to SIGCONT signal, and if you register for some signal the SIGCONT handler,
+  // it should wait for the SIGCONT signal (if its signal handler is still SIGCONT default handler), or to the newly registered signal.
+  while (1)
+  {
     yield();
+    if ((p->pendingSigs & 1 << SIGCONT) && ((p->sigMask & 1 << SIGCONT) == 0) && (p->sigHandlers[SIGCONT] == 0))
+    {
+      return;
+    }
+   
+
+      for (int i = 0; i < 32; i++)
+      {
+        if ((p->sigHandlers[i] == (void *)SIGCONT) && (p->pendingSigs & 1 << i) && ((p->sigMask & 1 << i) == 0))
+        {
+          return;
+        }
+      
+    }
+    if (p->pendingSigs & 1<<SIGKILL)
+    {
+      return;
+    }
+    
+  }
 }
 
 void sigkill_handler()
 {
+  printf("in sigkill\n");
   struct proc *p = myproc();
   p->killed = 1;
 }
@@ -1142,32 +1203,70 @@ void handleSignal()
 {
 
   struct proc *p;
+  struct thread *t =mythread();
   p = myproc();
-
-  struct thread *t = mythread();
-
-  if ((p != 0) & (p->handleingsignal == 0))
+  if ((p != 0) && p->handleingsignal == 0)
   {
     // if (((tf->cs) & 3) != DPL_USER) {
     //   return;
     // }
-    //printf("pending sigs to pid:%d is:%d\n",p->pid,p->pendingSigs);
     for (int i = 0; i < 32; ++i)
     {
-      if ((1 << i & p->pendingSigs) && !((1 << i) & p->sigMask) && (p->sigHandlers[i] != (void *)SIG_IGN))
+      if ((1 << i & p->pendingSigs) && !((1 << i) & p->sigMask))
       {
-        printf("found signal to deal with. number %d\n ", i);
-        if (p->sigHandlers[i] == (void *)SIG_DFL)
-        { //kernel space
-          printf("found defauld handler for signal: \n ", i);
-          if (i == SIGSTOP)
-            sigstop_handler();
-          else
-            sigkill_handler(); // includes the sigkill & default handler
-        }
-        else
+
+        if (p->sigHandlers[i] == (void *)SIG_IGN)
         {
-          //back up the process' mask and change to its signal handler's costum mask
+          p->pendingSigs ^= (1 << i); // Remove the signal from the pending_signals
+          return;
+        }
+
+        //printf("found signal to deal with. number %d\n ", i);
+        //kernel space
+        //printf("found defauld handler for signal: \n ", i);
+
+        if (i == SIGSTOP || p->sigHandlers[i] == (void *)SIGSTOP)
+        {
+          p->maskB = p->sigMask;
+          p->sigMask = p->handlersmasks[i];
+          sigstop_handler();
+          p->sigMask = p->maskB;
+          p->pendingSigs ^= (1 << i); 
+          return;
+        }
+        else if (i == SIGKILL || p->sigHandlers[i] == (void *)SIGKILL)
+        {
+          p->maskB = p->sigMask;
+          p->sigMask = p->handlersmasks[i];
+          sigkill_handler(); 
+          p->sigMask = p->maskB;
+
+          p->pendingSigs ^= (1 << i); 
+          return;
+        }
+        else if ((i == SIGCONT && p->sigHandlers[i] == (void *)SIG_DFL) || p->sigHandlers[i] == (void *)SIGCONT)
+        {
+          p->pendingSigs ^= (1 << i); // Remove the signal from the pending_signals
+          return;
+        }
+
+        else if (p->sigHandlers[i] == (void *)SIG_DFL)
+        {
+          p->maskB = p->sigMask;
+          p->sigMask = p->handlersmasks[i];
+          sigkill_handler(); 
+          p->sigMask = p->maskB;
+
+          p->pendingSigs ^= (1 << i); // Remove the signal from the pending_signals
+          return;
+        }
+        else if (p->handleingsignal == 0)
+        {
+
+
+          //now check for kernelspace handlers setted by user.
+
+          //back up the process' mask and change to its signal handler's costum mask OR the process mask
           p->maskB = p->sigMask;
           p->sigMask = p->handlersmasks[i];
           p->handleingsignal = 1;
@@ -1189,7 +1288,6 @@ void handleSignal()
           //finally change the program counter to point on the signal handler function gave by the user and turn of this ignal bit
           t->trapframe->epc = (uint64)p->sigHandlers[i];
           p->pendingSigs ^= (1 << i); // Remove the signal from the pending_signals
-
           return;
         }
       }
@@ -1274,7 +1372,7 @@ int kthread_id(void)
 
 void kthread_exit(int status)
 {
-  //printf("in kthread exit,p: %p t: %p id is: %d\n",myproc(), mythread(),mythread()->index);
+  printf("in kthread exit,p: %p t: %p id is: %d\n",myproc(), mythread(),mythread()->index);
   struct proc *p = myproc();
   struct thread *t = mythread();
 

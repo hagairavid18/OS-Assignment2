@@ -134,15 +134,15 @@ int exec(char *path, char **argv)
     if (thread != th)
       thread->killed = 1;
 
-  // //TASK 2.1.2
-  // ///TODO why they wrote to check if not SIG_DFL?
-  // for (i = 0; i < 32; i++)
-  // {
-  //   if ((p->sigHandlers[i] != (void *)SIG_IGN) && (p->sigHandlers[i] != (void *)SIG_DFL))
-  //   {
-  //     p->sigHandlers[i] = (void *)SIG_DFL;
-  //   }
-  // }
+  //TASK 2.1.2
+  for (i = 0; i < 32; i++)
+  {
+    if (p->sigHandlers[i] != (void *)SIG_IGN)
+    {
+      p->sigHandlers[i] = (void *)SIG_DFL;
+       p->handlersmasks[i] = 0;
+    }
+  }
 
   return argc; // this ends up in a0, the first argument to main(argc, argv)
 
