@@ -283,6 +283,98 @@ void user_handler_update_mask_test2(void){
 
 
 
+void test_morehtreadsthantable(){
+    char *stacks[20];
+    int cid;
+    for (int i = 0; i < sizeof(stacks)/sizeof(char *); i++)
+    {
+        stacks[i] = ((char *)malloc(4000 * sizeof(char)));
+    }
+    //int pid[5];
+
+    if ((cid = fork()) == 0)
+    {
+        int childs1[sizeof(stacks)/sizeof(char *)];
+        // int childs2[7];
+
+        for (int j = 0; j < 20; j++)
+        {
+            int child1 = kthread_create(&incCount, stacks[j]);
+            printf("child id is %d\n",child1);
+            childs1[j] = child1;
+        }
+        for (int j = 0; j < sizeof(stacks)/sizeof(char *); j++)
+        {
+            kthread_join(childs1[j],(int *)0);
+        }
+        
+
+        printf("count1 is %d\n",count);
+        // printf("count2  is %d\n",count2);
+        kthread_exit(0);
+        
+    }
+    
+
+    wait(0);
+    printf("test_morehtreadsthantable PASS\n");
+}
+
+
+void test_alteringcreatejointhreads(){
+    char *stacks[20];
+    int cid;
+    for (int i = 0; i < 20; i++)
+    {
+        stacks[i] = ((char *)malloc(4000 * sizeof(char)));
+    }
+    //int pid[5];
+
+    if ((cid = fork()) == 0)
+    {
+        int childs1[sizeof(stacks)/sizeof(char *)];
+        // int childs2[7];
+
+        for (int j = 0; j < 7; j++)
+        {
+            int child1 = kthread_create(&incCount, stacks[j]);
+            printf("child id is %d\n",child1);
+            childs1[j] = child1;
+        }
+        printf("finished loop\n");
+
+        kthread_join(childs1[0],(int *)0);
+        stacks[0] = ((char *)malloc(4000 * sizeof(char)));
+        int child1 = kthread_create(&incCount, stacks[0]);        
+        printf("child id is %d\n",child1);
+
+        kthread_join(childs1[5],(int *)0);
+        stacks[5] = ((char *)malloc(4000 * sizeof(char)));
+        child1 = kthread_create(&incCount, stacks[5]);
+        printf("child id is %d\n",child1);
+
+        kthread_join(childs1[7],(int *)0);
+        stacks[7] = ((char *)malloc(4000 * sizeof(char)));
+        child1 = kthread_create(&incCount, stacks[7]);
+        printf("child id is %d\n",child1);
+
+        for (int j = 0; j < sizeof(stacks)/sizeof(char *); j++)
+        {
+            kthread_join(childs1[j],(int *)0);
+        }
+        
+
+        printf("count1 is %d\n",count);
+        // printf("count2  is %d\n",count2);
+        kthread_exit(0);
+        
+    }
+    
+
+    wait(0);
+    printf("test_alteringcreatejointhreads PASS\n");
+}
+
 
 
 void thread_test1()
@@ -773,7 +865,7 @@ void KillFromKeyboard()
 int main(int argc, char **argv)
 {
 
-
+    test_alteringcreatejointhreads();
     ///TAL TESTS ///TODO delte
     //user_handler_update_mask_test2();
     //ser_handler_update_mask_test();
@@ -834,7 +926,7 @@ void dummyFunc3(int signum)
 
 void incCount(int signum)
 {
-    printf("in incount\n");
+    // printf("in incount()\n");
     count++;
     //printf("%d\n", count);
 }
