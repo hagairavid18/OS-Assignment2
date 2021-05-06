@@ -3,7 +3,7 @@
     Task 3 - Kerlnel level threads implementation. 
     klt extends xv6 proc implementation
 */
-# define MAX_STACK_SIZE 4000
+# define STACK_SIZE 4000
 
 // Saved registers for kernel context switches.
 struct context {
@@ -29,7 +29,7 @@ struct context {
 
 
 //TODO: fix / change the statess
-enum threadstate { UNUSED_THREAD, SLEEPING, RUNNABLE, RUNNING, ZOMBIE_THREAD };
+enum threadstate { UNUSED_THREAD,USED_THRAEAD, SLEEPING, RUNNABLE, RUNNING, ZOMBIE_THREAD };
 struct thread {
     struct spinlock lock;
     

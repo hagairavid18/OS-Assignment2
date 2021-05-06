@@ -36,7 +36,7 @@ int kthread_create(void (*start_func)(), void *stack);
 
 int kthread_id(void);
 void kthread_exit(int);
-int kthread_join(int);
+int kthread_join(int,int*);
 
 // ulib.c
 int stat(const char *, struct stat *);

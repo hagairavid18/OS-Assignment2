@@ -188,17 +188,19 @@ sys_kthread_exit(void)
 uint64
 sys_kthread_join(void) 
 {
-  //(int thread_id, int* status)
+   //(int thread_id, int* status)
   /* 
     TODO: implement function
   */
 
   int thread_id;
+  uint64 status;
   if(argint(0, &thread_id) < 0)
     return -1;
-  
-  return kthread_join(thread_id);
+  if(argaddr(1, &status) < 0)
+    return -1;
 
+  return kthread_join(thread_id, (int *) status);
 }
 
 // >>>>>>>>>>>> END
