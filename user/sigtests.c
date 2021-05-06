@@ -299,7 +299,7 @@ void test_morehtreadsthantable(){
 
         for (int j = 0; j < 20; j++)
         {
-            int child1 = kthread_create(&incCount, stacks[j]);
+            int child1 = kthread_create(&incCount2, stacks[j]);
             printf("child id is %d\n",child1);
             childs1[j] = child1;
         }
@@ -337,34 +337,40 @@ void test_alteringcreatejointhreads(){
 
         for (int j = 0; j < 7; j++)
         {
-            int child1 = kthread_create(&incCount, stacks[j]);
+            int child1 = kthread_create(&incCount2, stacks[j]);
             printf("child id is %d\n",child1);
             childs1[j] = child1;
         }
         printf("finished loop\n");
 
-        kthread_join(childs1[0],(int *)0);
-        stacks[0] = ((char *)malloc(4000 * sizeof(char)));
-        int child1 = kthread_create(&incCount, stacks[0]);        
+        printf("----- Altering -----\n");
+
+        printf("Altering thread 1: ");
+        kthread_join(childs1[1],(int *)0);
+        stacks[1] = ((char *)malloc(4000 * sizeof(char)));
+        int child1 = kthread_create(&incCount2, stacks[1]);        
         printf("child id is %d\n",child1);
 
+        printf("Altering thread 5: ");
         kthread_join(childs1[5],(int *)0);
         stacks[5] = ((char *)malloc(4000 * sizeof(char)));
-        child1 = kthread_create(&incCount, stacks[5]);
+        child1 = kthread_create(&incCount2, stacks[5]);
         printf("child id is %d\n",child1);
 
+        printf("Altering thread 7: ");
         kthread_join(childs1[7],(int *)0);
         stacks[7] = ((char *)malloc(4000 * sizeof(char)));
-        child1 = kthread_create(&incCount, stacks[7]);
+        child1 = kthread_create(&incCount2, stacks[7]);
         printf("child id is %d\n",child1);
 
+        printf("----- Done -----\nJoin on all table\n");
         for (int j = 0; j < sizeof(stacks)/sizeof(char *); j++)
         {
             kthread_join(childs1[j],(int *)0);
         }
         
 
-        printf("count1 is %d\n",count);
+        printf("count2 is %d\n",count2);
         // printf("count2  is %d\n",count2);
         kthread_exit(0);
         
