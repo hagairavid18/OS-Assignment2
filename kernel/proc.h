@@ -152,13 +152,19 @@ struct proc {
 */
 
 #define MAX_BSEM 128
+enum bsemstate { FREE, LOCKED, UNLOCKED }; 
 
-int bsem_alloc(void);
+struct bsem {
+    enum bsemstate state;
+    struct spinlock lock;
+};
 
-void bsem_free(int);
+// int bsem_alloc(void);
 
-void bsem_down(int);
+// void bsem_free(int);
 
-void bsem_up(int);
+// void bsem_down(int);
+
+// void bsem_up(int);
 
 // <<<<<<<<<<<<<< Task 4.1 END >>>>>>>>>>>>>>
