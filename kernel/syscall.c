@@ -118,10 +118,10 @@ extern uint64 sys_kthread_id(void);
 extern uint64 sys_kthread_join(void);
 extern uint64 sys_kthread_exit(void);
 // TASK 4.1
-extern uint64 sys_bsem_alloc (void);
-extern uint64 sys_bsem_free(int);
-extern uint64 sys_bsem_up(int);
-extern uint64 sys_bsem_down(int);
+extern uint64 sys_bsem_alloc(void);
+extern uint64 sys_bsem_free(void);
+extern uint64 sys_bsem_up(void);
+extern uint64 sys_bsem_down(void);
 
 
 static uint64 (*syscalls[])(void) = {

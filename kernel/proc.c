@@ -181,7 +181,7 @@ int freethread(struct thread *th)
   th->state = UNUSED_THREAD;
 
   // Q4.1
-  t->bsem = -1;
+  th->bsem = -1;
 
   return 0;
 }
