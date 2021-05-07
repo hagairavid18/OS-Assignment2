@@ -204,3 +204,32 @@ sys_kthread_join(void)
 }
 
 // >>>>>>>>>>>> END
+
+//
+
+uint64 
+sys_bsem_alloc(void){
+  bsem_alloc();
+  return;
+}
+uint64 sys_bsem_free(void){
+  int bsem;
+  if(argint(0,&bsem))
+    return -1;
+  bsem_free(bsem);
+  return;
+}
+uint64 sys_bsem_up(void){
+  int bsem;
+  if(argint(0,&bsem))
+    return -1;
+  bsem_up(bsem);
+  return;
+}
+uint64 sys_bsem_down(void){
+  int bsem;
+  if(argint(0,&bsem))
+    return -1;
+  bsem_down(bsem);
+  return;
+}
