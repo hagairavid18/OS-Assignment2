@@ -180,6 +180,10 @@ int freethread(struct thread *th)
   return 0;
 }
 
+int mytid(void){
+  return mythread()->tid; 
+}
+
 // >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> END
 
 int allocpid()
@@ -1120,7 +1124,7 @@ void sigstop_handler()
   while (1)
   {
     yield();
-    if ((p->pendingSigs & 1 << SIGCONT) && ((p->sigMask & 1 << SIGCONT) == 0) && (p->sigHandlers[SIGCONT] == 0))
+    if (((p->pendingSigs & 1 << SIGCONT) == 0) || ((p->pendingSigs & 1 << SIGCONT) && ((p->sigMask & 1 << SIGCONT) == 0) && (p->sigHandlers[SIGCONT] == 0)))
     {
       return;
     }

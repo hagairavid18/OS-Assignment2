@@ -344,7 +344,7 @@ void test_alteringcreatejointhreads(){
         printf("finished loop\n");
 
         printf("----- Altering -----\n");
-
+        printf("running thread = %d\n", kthread_id());
         printf("Altering thread 1: ");
         kthread_join(childs1[1],(int *)0);
         stacks[1] = ((char *)malloc(4000 * sizeof(char)));
@@ -357,10 +357,10 @@ void test_alteringcreatejointhreads(){
         child1 = kthread_create(&incCount2, stacks[5]);
         printf("child id is %d\n",child1);
 
-        printf("Altering thread 7: ");
-        kthread_join(childs1[7],(int *)0);
+        printf("Altering thread 6: ");
+        kthread_join(childs1[6],(int *)0);
         stacks[7] = ((char *)malloc(4000 * sizeof(char)));
-        child1 = kthread_create(&incCount2, stacks[7]);
+        child1 = kthread_create(&incCount2, stacks[6]);
         printf("child id is %d\n",child1);
 
         printf("----- Done -----\nJoin on all table\n");
@@ -378,7 +378,7 @@ void test_alteringcreatejointhreads(){
     
 
     wait(0);
-    printf("test_alteringcreatejointhreads PASS\n");
+    printf("test_alteringcreatejointhreads %s\n", (count2 == 10? "PASS": "FAILED"));
 }
 
 
@@ -873,12 +873,12 @@ int main(int argc, char **argv)
 
     test_alteringcreatejointhreads();
     ///TAL TESTS ///TODO delte
-    //user_handler_update_mask_test2();
-    //ser_handler_update_mask_test();
+    user_handler_update_mask_test2();
+    // ser_handler_update_mask_test();
     
     //kernel_handler_update_mask_test();
-    //test_stop_cont();
-    //ignore_test();
+    test_stop_cont();
+    ignore_test();
     //char * arg[]={"test_function","test working",'\0'};
     //stop_cont_test(arg); //DIDNT pass, we dont have test function
     //kill_while_freezed_test();
@@ -886,21 +886,21 @@ int main(int argc, char **argv)
 
     ///END TAL TESTS???TODO DELETE
 
-    // thread_test1();
-    // thread_test2();
-    // thread_test3();
-    //userHandlerTest(); // dosnt work with multiplate cpu.
+    thread_test1();
+    thread_test2();
+    thread_test3();
+    userHandlerTest(); // dosnt work with multiplate cpu.
 
-    // SetMaskTest();
-    // stopContTest1();
-    // stopContTest2();
-    // stopKillTest();
-    // signalsmaskstest();
-    // KillFromKeyboard();
+    SetMaskTest();
+    stopContTest1();
+    stopContTest2();
+    stopKillTest();
+    signalsmaskstest();
+    KillFromKeyboard();
 
-    //   communicationTest();
+    //communicationTest();
 
-    //   multipleSignalsTest();
+    // multipleSignalsTest();
     //printf("hereeeeeeeeeeeeeeeeeee");
     exit(0);
 }
