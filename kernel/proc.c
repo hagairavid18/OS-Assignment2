@@ -146,6 +146,9 @@ int initthreadstable(struct proc *p)
     t->procparent = p;
     t->trapframe = (struct trapframe *)p->trapframes + i;
     t->killed = 0;
+    
+    // Q4.1
+    t->bsem = -1;
   }
   return 0;
 }
@@ -176,6 +179,9 @@ int freethread(struct thread *th)
   th->killed = 0;
   th->xstate = 0;
   th->state = UNUSED_THREAD;
+
+  // Q4.1
+  t->bsem = -1;
 
   return 0;
 }
@@ -1461,3 +1467,89 @@ int kthread_join(int thread_id, int *status)
     sleep(nt, &wait_lock);
   }
 }
+
+
+// <<<<<<<<<<<<<<<<< Task 4.1 <<<<<<<<<<<<<<<<<
+
+static int bsem_table[MAX_BSEM] = {[0 ... MAX_BSEM-1] = -1};
+/*
+    binary semaphores states:
+        -1  := unused
+        0   := locked
+        1   := unlocked
+*/
+
+
+int bsem_alloc(void){
+    int sd = 0; // Semaphore descriptor
+    for (sd = 0; sd < MAX_BSEM; sd++){
+        if (bsem_table[sd] == 0){
+            bsem_table[sd] = 0; // occupy semaphore i
+            return sd;
+        }
+    }
+    return -1; // in case no avalable semaphore found
+}
+
+void bsem_free(int sd){
+  if ( sd < 0 || sd >= MAX_BSEM || bsem_table[sd] == -1) return; // invalid cases
+
+  bsem_table[sd] = -1; // free a valid binary semaphore
+
+  // Note: Note that the behavior of freeing a semaphore while other threads “blocked” because of it is undefined 
+  // and is not be supported.
+  // For now, we will just set it back to be RUNNABLE
+  struct proc *p;
+  struct thread *t;
+  for (p = proc; p < &proc[NPROC]; p++)
+  {
+    // printf("acquire bsem_free() 1496 proc=%p\n", p);
+    // acquire(&p->lock);
+    if (p->state == ACTIVE)
+    {
+      
+      for (t = p->threads; t < &p->threads[NTHREAD]; t++)
+      {
+        acquire(&t->lock);
+        if (t->bsem == sd)
+        {
+          // found thread locked on the bsem
+          t->bsem = -1;
+          t->state = RUNNABLE;
+        }
+      }
+    }
+  }
+
+  bsem_table[sd] = -1; // set unused state
+  
+}
+
+void bsem_down(int sd){
+  if ( sd < 0 || sd >= MAX_BSEM || bsem_table[sd] == -1) return; // invalid cases
+  
+  mythread()->bsem = sd;
+  
+  if (bsem_table[sd] == 1){
+    bsem_table[sd] = 0;
+    return;
+  }
+
+  while (bsem_table[sd] == 0 && mythread()->bsem == sd)
+  {
+    yield();
+  }
+  
+  bsem_table[sd] = 0;
+  return;
+}
+
+void bsem_up(int sd){
+  if ( sd < 0 || sd >= MAX_BSEM || bsem_table[sd] == -1 || mythread()->bsem != sd) return; // invalid cases
+
+  mythread()->bsem = -1;
+  bsem_table[sd] = 1; // Back to unlocked state
+  return;
+}
+
+// <<<<<<<<<<<<<<< Task 4.1 END <<<<<<<<<<<<<<<

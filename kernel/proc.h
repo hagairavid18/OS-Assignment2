@@ -141,3 +141,24 @@ struct proc {
   // Q3 
   struct thread threads[NTHREAD]; //threads 
 };
+
+
+// <<<<<<<<<<<<<<<< Task 4.1 >>>>>>>>>>>>>>>>
+/*
+    binary semaphores states:
+        -1  := unused
+        0   := locked
+        1   := unlocked
+*/
+
+#define MAX_BSEM 128
+
+int bsem_alloc(void);
+
+void bsem_free(int);
+
+void bsem_down(int);
+
+void bsem_up(int);
+
+// <<<<<<<<<<<<<< Task 4.1 END >>>>>>>>>>>>>>

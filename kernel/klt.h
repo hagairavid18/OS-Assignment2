@@ -46,13 +46,17 @@ struct thread {
     struct proc *procparent;        // Parent process of the thread
     struct trapframe *trapframe;    // data page for trampoline.S
     struct context context;         // swtch() here to run process
-  struct trapframe *usrTFB; 
+    struct trapframe *usrTFB; 
 
 
     // these are private to the thread, so th->lock need not be held.
     uint64 kstack;                  // Virtual address of kernel stack
     
     // TODO: xstate is needed?
+    
+    // Q4.1 - binary semaphore
+    int bsem;                  // binary semaphore which is blocked on
+    
 };
 
 
