@@ -1479,29 +1479,44 @@ int kthread_join(int thread_id, int *status)
 // <<<<<<<<<<<<<<<<< Task 4.1 <<<<<<<<<<<<<<<<<
 
 int bsem_alloc(void){
+  acquire(&bsem_table_lock);
+  
   int table_index = 0;
   struct bsem *b; // Semaphore descriptor
-  acquire(&bsem_table_lock);
+  
   for (b = bsem_table; b < &bsem_table[MAX_BSEM]; b++){
-    // release(&bs->lock);
+    acquire(&b->lock);
+    
     if (b->state == FREE){
       b->state = UNLOCKED;
+      release(&b->lock);
       release(&bsem_table_lock); 
       return table_index;
     }
-    // release(&bs->lock);
+    
+    release(&b->lock);
     table_index++;
   }
+  
   release(&bsem_table_lock);
   return -1; // in case no avalable semaphore found
 }
 
 void bsem_free(int ds){
   if ( ds < 0 || ds >= MAX_BSEM || bsem_table[ds].state == FREE) return; // invalid cases
+  struct bsem* b = &bsem_table[ds];
 
   acquire(&bsem_table_lock);
+  acquire(&b->lock);
   bsem_table[ds].state = FREE;
+  release(&b->lock);
   release(&bsem_table_lock);
+
+  /*
+    Note that the behavior of
+    freeing a semaphore while other threads “blocked” because of it is undefined and
+    should is not supported.
+  */
   return;
 }
 
@@ -1524,12 +1539,12 @@ void bsem_up(int ds){
   if ( ds < 0 || ds >= MAX_BSEM || bsem_table[ds].state == FREE || mythread()->bsem != ds) return; // invalid cases
   
   struct bsem* b = &bsem_table[ds];
-
   acquire(&b->lock);
   b->state = UNLOCKED; // Back to unlocked state
   mythread()->bsem = -1;
   release(&b->lock);
-
+  wakeup(b);
+  
   return;
 }
 
