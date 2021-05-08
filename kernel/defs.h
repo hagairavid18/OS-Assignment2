@@ -8,6 +8,7 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
+struct counting_semaphore;
 
 //TASK 2.1.4
 struct sigaction;
@@ -218,3 +219,10 @@ void            virtio_disk_intr(void);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
+
+// Csemaphore.h
+
+void        csem_down(struct counting_semaphore *sem);
+void        csem_up(struct counting_semaphore *sem);
+int         csem_alloc(struct counting_semaphore *sem, int initial_value);
+void        csem_free(struct counting_semaphore *sem);

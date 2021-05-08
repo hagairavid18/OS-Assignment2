@@ -1474,6 +1474,9 @@ int kthread_join(int thread_id, int *status)
 
 // <<<<<<<<<<<<<<<<< Task 4.1 <<<<<<<<<<<<<<<<<
 
+// Allocates a new binary semaphore and returns its descriptor(-1 if failure). You are not
+// restricted on the binary semaphore internal structure, but the newly allocated binary
+// semaphore should be in unlocked state.
 int bsem_alloc(void){
   acquire(&bsem_table_lock);
   
@@ -1498,6 +1501,9 @@ int bsem_alloc(void){
   return -1; // in case no avalable semaphore found
 }
 
+// Frees the binary semaphore with the given descriptor. Note that the behavior of
+// freeing a semaphore while other threads “blocked” because of it is undefined and
+// should not be supported.
 void bsem_free(int ds){
   if ( ds < 0 || ds >= MAX_BSEM || bsem_table[ds].state == FREE) return; // invalid cases
   struct bsem* b = &bsem_table[ds];
@@ -1516,6 +1522,8 @@ void bsem_free(int ds){
   return;
 }
 
+// Attempt to acquire (lock) the semaphore, in case that it is already acquired (locked),
+// block the current thread until it is unlocked and then acquire it.
 void bsem_down(int ds){
   if ( ds < 0 || ds >= MAX_BSEM || bsem_table[ds].state == FREE) return; // invalid cases
   
@@ -1530,6 +1538,8 @@ void bsem_down(int ds){
   return;
 }
 
+// Attempt to acquire (lock) the semaphore, in case that it is already acquired (locked),
+// block the current thread until it is unlocked and then acquire it.
 void bsem_up(int ds){
   if ( ds < 0 || ds >= MAX_BSEM || bsem_table[ds].state == FREE) return; // invalid cases
   
