@@ -54,9 +54,6 @@ struct thread {
     
     // TODO: xstate is needed?
     
-    // Q4.1 - binary semaphore
-    int bsem;                  // binary semaphore which is blocked on
-    
 };
 
 

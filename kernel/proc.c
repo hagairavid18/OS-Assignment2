@@ -154,8 +154,6 @@ int initthreadstable(struct proc *p)
     t->trapframe = (struct trapframe *)p->trapframes + i;
     t->killed = 0;
 
-    // Q4.1
-    t->bsem = -1;
   }
   return 0;
 }
@@ -187,9 +185,6 @@ int freethread(struct thread *th)
   th->xstate = 0;
   th->state = UNUSED_THREAD;
 
-  // Q4.1
-  th->bsem = -1;
-  
   return 0;
 }
 
@@ -1529,19 +1524,17 @@ void bsem_down(int ds){
     sleep(b, &b->lock);
   }
   b->state = LOCKED;
-  mythread()->bsem = ds;
   
   release(&b->lock);
   return;
 }
 
 void bsem_up(int ds){
-  if ( ds < 0 || ds >= MAX_BSEM || bsem_table[ds].state == FREE || mythread()->bsem != ds) return; // invalid cases
+  if ( ds < 0 || ds >= MAX_BSEM || bsem_table[ds].state == FREE) return; // invalid cases
   
   struct bsem* b = &bsem_table[ds];
   acquire(&b->lock);
   b->state = UNLOCKED; // Back to unlocked state
-  mythread()->bsem = -1;
   release(&b->lock);
   wakeup(b);
   
