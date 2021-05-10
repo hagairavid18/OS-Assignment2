@@ -15,11 +15,6 @@
 #define NULL 0
 #define SIG_DFL 0
 
-
-
-
-
-
 int flag1 = 0;
 int flag2 = 0;
 int flag3 = 0;
@@ -35,258 +30,13 @@ void dummyFunc3(int);
 void incCount3(int);
 void incCount2(int);
 void incCount(int);
-void itoa(int, char *);
-void usrKillTest(void);
-void reverse(char[]);
+void forverrun(int signum);
 
-/////////////TAL TESTS /////TODO: delete
-void user_handler (int signum){
-    printf(" hiii user_handler is working  1 !! \n");
-    return;
-}
-
-void user_handler2 (int signum){
-    printf(" hiii user_handler is working 2 !! \n");
-    return;
-}
-
-void kill_while_freezed_test(void){
-    int pid = fork();
-    int status;
-    if((pid > 0)) {         // father
-        sleep(2);
-        printf(" father is sending SIGSTOP to child\n");
-        kill(pid, SIGSTOP);
-        printf(" father is going to sleep\n");
-        sleep(150);
-        printf(" father is sending SIGKILL to child\n");
-        kill(pid, SIGKILL);
-        wait(&status);
-        printf(" father finished\n");
-    }else{
-        printf("child is here\n");
-        while(1){
-
-        }
-
-    }
-}
-
-void stop_cont_test(char *argv[]){
-    int status;
-    int pid = fork();
-    if (pid > 0){           //father
-        sleep(100);
-        printf(" father is sending SIGSTOP to child\n");
-        kill(pid, SIGSTOP);
-        printf(" father is going to sleep\n");
-        sleep(200);
-        printf(" father is going to sleep\n");
-        sleep(100);
-        printf(" father is going to sleep\n");
-        sleep(100);
-        printf(" father is sending SIGCONT to child\n");
-        kill(pid, SIGCONT);
-        sleep(100);
-        printf(" father is sending SIGKILL to child\n");
-        kill(pid, SIGKILL);
-        wait(&status);
-        printf(" father finished\n");
-
-    } else {
-        exec("test_function", argv);
-    }
-}
-
-void ignore_test(void){
-    struct sigaction* action = (struct sigaction*) malloc (sizeof sigaction);
-    action->sa_handler = (void*)SIG_IGN;
-    action->sigmask = 0;
-    int status;
-
-    sigaction(15, action, NULL);
-    int pid = fork();
-    if (pid != 0 ){     // father
-        printf("father send signal 15 which should be ignored\n");
-        kill(pid, 15);
-         printf("father going to sleep \n");
-        sleep(20);
-        printf("father sending SIGKILL to kill child\n");
-        kill(pid, SIGKILL);
-        wait(&status);
-        printf("ignore succeed, ignore test passed\n");
-    } else {        // child
-        sleep(10);
-        while(1){
-
-        }
-        printf("ignore test failed!\n");
-    }
-    free(action);
-}
-
-void user_handler_update_mask_test(void){
-    int pid = fork();
-    int status;
-    struct sigaction* action;
-    struct sigaction* action2;
-    if (pid) {          // father
-        sleep(3);           // make sure child woke first
-        printf("father is sending signal 15  \n");
-        kill(pid, 15);
-        printf("father is going to sleep ... \n");
-        sleep(20);
-        wait(&status);
-        printf("father finish \n");
-    } else if (pid==0){            // child
-        int pid2 = fork();
-        int stat;
-        if (pid2== 0){
-            sleep(60);
-            action2 = (struct sigaction*) malloc (sizeof sigaction);
-            action2->sa_handler = user_handler2;
-            action2->sigmask = 0;
-            sigaction(13, action2, NULL);
-            uint oldmask1 = sigprocmask(0x2000);
-            printf("child 2 is going to sleep ... \n");
-            sleep(60);
-            printf("child 2 signal 13 still blocked ... \n");
-            oldmask1 = sigprocmask(0);           // unblock signal 0x2000
-            sleep(10);
-            if (oldmask1 != 0x2000)
-                printf(" sigprocmask new failed \n", oldmask1);
-        }
-        else{
-            action = (struct sigaction*) malloc (sizeof sigaction);
-            action->sa_handler = user_handler;
-            action->sigmask = 0;
-            sigaction(15, action, NULL);
-          //  uint oldmask = sigprocmask(0x2000);
-            uint oldmask = sigprocmask(0x8000);
-         //   if (oldmask != 0x2000)                 // cuz oldmask changed
-         //       printf("1 sigprocmask failed \n");
-            printf("child is going to sleep ... \n");
-            sleep(60);
-            printf("CHILD is sending signal 13  \n");
-            kill(pid2, 13);
-            printf("child signal 15 still blocked ... \n");
-            sleep(20);
-            oldmask = sigprocmask(0);           // unblock signal 15
-          //  printf(" before 2 sigprocmask failed %d\n",oldmask);
-            sleep(10);
-            if (oldmask != 0x8000)
-                printf("2 sigprocmask failed \n");
-            wait(&stat);
-        }
-          
-       
-    }
-    //free(action);
-    //free(action2);
-    return;
-}
-
-void kernel_handler_update_mask_test(void){
-    int pid = fork();
-    int status;
-    if (pid) {          // father
-        sleep(3);           // make sure child woke first
-         printf("father send signal 15 ... \n");
-        kill(pid, 15);
-        sleep(10);
-        kill(pid, SIGCONT);
-        printf("father is going to wait ... \n");
-        wait(&status);
-         printf("father finished ... \n");
-    } else {            // child
-        struct sigaction* action = (struct sigaction*) malloc (sizeof sigaction);
-        action->sa_handler = (void*)SIGSTOP;
-        action->sigmask = 0;
-        sigaction(15, action, NULL);
-        uint oldmask = sigprocmask(0x8000);
-        if (oldmask != 0)                 // cuz oldmask changed
-            printf("sigprocmask failed \n");
-        printf("child is going to sleep ... \n");
-        sleep(10);
-        printf("child signal 15 still blocked ... \n");
-        printf("child unblocked signal ... \n");
-        oldmask = sigprocmask(0);           // unblock signal 15
-        if (oldmask != 0x8000)
-            printf("sigprocmask failed \n");
-        free(action);
-        exit(0);
-    }
-}
-
-
-void
-test_stop_cont(){
-    int pid = fork();
-
-    if(pid == 0){           // child 
-        printf( "child %d going to loop \n", getpid());
-
-        while(1){
-          //  running
-        }
-    }
-    else{       //  father
-        sleep(40);
-        printf( " father sending  SIGSTOP ... \n");
-        kill(pid, SIGSTOP);                         // child should yeild
-        sleep(40);
-        printf( "father sending  SIGCONT\n");           // child continue
-        kill(pid, SIGCONT);
-        sleep(40);
-        printf( "father sending  SIG_DFL\n");            // child going to die
-        kill(pid, SIG_DFL);
-        wait(&pid);
-        printf("father finish waiting for child end exit \n");
-        exit(0);
-    }
-}
-
-void user_handler_update_mask_test2(void){
-    int pid = fork();
-    int status;
-    if (pid) {          // father
-        sleep(3);           // make sure child woke first
-        kill(pid, 15);
-        wait(&status);
-    } else if (pid==0){            // child
-        struct sigaction* action = (struct sigaction*) malloc (sizeof sigaction);
-        action->sa_handler = user_handler;
-        action->sigmask = 0;
-        sigaction(15, action, NULL);
-        uint oldmask = sigprocmask(0x2000);
-        oldmask = sigprocmask(0x8000);
-        if (oldmask != 0x2000)                 // cuz oldmask changed
-            printf("1 sigprocmask failed \n");
-        printf("child is going to sleep ... \n");
-        sleep(20);
-        printf("child signal 15 still blocked ... \n");
-        oldmask = sigprocmask(0);           // unblock signal 15
-        printf(" before 2 sigprocmask failed %d\n",oldmask);
-        sleep(10);
-        if (oldmask != 0x8000)
-            printf("2 sigprocmask failed \n");
-        free(action);
-       return;
-    }
-}
-
-
-
-
-/////TAL TESTS ENDDDDDDDDD  ///TODO: delete
-
-
-
-
-void test_morehtreadsthantable(){
+void test_morehtreadsthantable()
+{
     char *stacks[20];
     int cid;
-    for (int i = 0; i < sizeof(stacks)/sizeof(char *); i++)
+    for (int i = 0; i < sizeof(stacks) / sizeof(char *); i++)
     {
         stacks[i] = ((char *)malloc(4000 * sizeof(char)));
     }
@@ -294,34 +44,31 @@ void test_morehtreadsthantable(){
 
     if ((cid = fork()) == 0)
     {
-        int childs1[sizeof(stacks)/sizeof(char *)];
+        int childs1[sizeof(stacks) / sizeof(char *)];
         // int childs2[7];
 
         for (int j = 0; j < 20; j++)
         {
             int child1 = kthread_create(&incCount2, stacks[j]);
-            printf("child id is %d\n",child1);
+            printf("child id is %d\n", child1);
             childs1[j] = child1;
         }
-        for (int j = 0; j < sizeof(stacks)/sizeof(char *); j++)
+        for (int j = 0; j < sizeof(stacks) / sizeof(char *); j++)
         {
-            kthread_join(childs1[j],(int *)0);
+            kthread_join(childs1[j], (int *)0);
         }
-        
 
-        printf("count1 is %d\n",count);
+        printf("count1 is %d\n", count);
         // printf("count2  is %d\n",count2);
         kthread_exit(0);
-        
     }
-    
 
     wait(0);
     printf("test_morehtreadsthantable PASS\n");
 }
 
-
-void test_alteringcreatejointhreads(){
+void test_alteringcreatejointhreads()
+{
     char *stacks[20];
     int cid;
     for (int i = 0; i < 20; i++)
@@ -332,13 +79,13 @@ void test_alteringcreatejointhreads(){
 
     if ((cid = fork()) == 0)
     {
-        int childs1[sizeof(stacks)/sizeof(char *)];
+        int childs1[sizeof(stacks) / sizeof(char *)];
         // int childs2[7];
 
         for (int j = 0; j < 7; j++)
         {
             int child1 = kthread_create(&incCount2, stacks[j]);
-            printf("child id is %d\n",child1);
+            printf("child id is %d\n", child1);
             childs1[j] = child1;
         }
         printf("finished loop\n");
@@ -346,42 +93,37 @@ void test_alteringcreatejointhreads(){
         printf("----- Altering -----\n");
         printf("running thread = %d\n", kthread_id());
         printf("Altering thread 1: ");
-        kthread_join(childs1[1],(int *)0);
+        kthread_join(childs1[1], (int *)0);
         stacks[1] = ((char *)malloc(4000 * sizeof(char)));
-        int child1 = kthread_create(&incCount2, stacks[1]);        
-        printf("child id is %d\n",child1);
+        int child1 = kthread_create(&incCount2, stacks[1]);
+        printf("child id is %d\n", child1);
 
         printf("Altering thread 5: ");
-        kthread_join(childs1[5],(int *)0);
+        kthread_join(childs1[5], (int *)0);
         stacks[5] = ((char *)malloc(4000 * sizeof(char)));
         child1 = kthread_create(&incCount2, stacks[5]);
-        printf("child id is %d\n",child1);
+        printf("child id is %d\n", child1);
 
         printf("Altering thread 6: ");
-        kthread_join(childs1[6],(int *)0);
+        kthread_join(childs1[6], (int *)0);
         stacks[7] = ((char *)malloc(4000 * sizeof(char)));
         child1 = kthread_create(&incCount2, stacks[6]);
-        printf("child id is %d\n",child1);
+        printf("child id is %d\n", child1);
 
         printf("----- Done -----\nJoin on all table\n");
-        for (int j = 0; j < sizeof(stacks)/sizeof(char *); j++)
+        for (int j = 0; j < sizeof(stacks) / sizeof(char *); j++)
         {
-            kthread_join(childs1[j],(int *)0);
+            kthread_join(childs1[j], (int *)0);
         }
-        
 
-        printf("count2 is %d\n",count2);
+        printf("count2 is %d\n", count2);
         // printf("count2  is %d\n",count2);
         kthread_exit(0);
-        
     }
-    
 
     wait(0);
-    printf("test_alteringcreatejointhreads %s\n", (count2 == 10? "PASS": "FAILED"));
+    printf("test_alteringcreatejointhreads %s\n", (count2 == 10 ? "PASS" : "FAILED"));
 }
-
-
 
 void thread_test1()
 {
@@ -417,7 +159,7 @@ void thread_test1()
 
     if ((cid = fork()) == 0)
     {
-                //printf("forked2\n");
+        //printf("forked2\n");
 
         for (int j = 0; j < 7; j++)
         {
@@ -431,7 +173,7 @@ void thread_test1()
             //printf("2 join to %d\n",childs2[j]);
             kthread_join(childs2[j], (int *)0);
         }
-                //printf("2 exit\n");
+        //printf("2 exit\n");
 
         kthread_exit(0);
     }
@@ -817,91 +559,103 @@ void stopKillTest()
     printf("stop kill test passed!\n");
 }
 
-void KillFromKeyboard()
+void stopKillTestThreads()
 {
-    printf("starting signal test using kill prog\n");
-    struct sigaction sig1;
-    sig1.sa_handler = &incCount;
-    printf("incount adress is %p\n", &incCount);
-    if (sigaction(10, &sig1, 0) < 0)
-        printf("failed sigaction");
 
-    sig1.sa_handler = &dummyFunc2;
-    printf("dummyfunc3 adress is %p\n", &dummyFunc2);
-
-    if (sigaction(11, &sig1, 0) < 0)
-        printf("failed sigaction");
-    int pid = getpid();
-
-    char pidStr[20];
-    char signumStr1[3];
-    char signumStr2[3];
-    char *argv[] = {"kill", pidStr, signumStr1, pidStr, signumStr2, 0};
-
-    itoa(pid, pidStr);
-    itoa(10, signumStr1);
-    itoa(11, signumStr2);
-    if (fork() == 0)
+    //stop child and then kill him while being stopped
+    printf("starting stopkill test threads!\n");
+    int child1;
+    if ((child1 = fork()) == 0)
     {
-        if (exec(argv[0], argv) < 0)
+        char *stacks[20];
+        for (int i = 0; i < 20; i++)
         {
-            printf("exec failed\n");
-            exit(0);
+            stacks[i] = ((char *)malloc(4000 * sizeof(char)));
         }
-    }
-    while (1)
-    {
-        sleep(1);
-        if (count && flag2)
+        //int pid[5];
+
+        // int childs2[7];
+
+        for (int j = 0; j < 7; j++)
         {
-            count = 0;
-            flag3 = 0;
-            wait(0);
-            break;
+             kthread_create(&forverrun, stacks[j]);
+            //printf("child id is %d\n", child1);
         }
+        forverrun(1);
     }
-    printf("signal test using kill prog passed!!\n");
-    sig1.sa_handler = 0;
-    for (int i = 0; i < 32; ++i)
-    {
-        sigaction(i, &sig1, 0);
-    }
+    sleep(1);
+
+    printf("about to stop child:\n");
+    kill(child1, 17);
+    printf("sleep for 10 seconds and then kill child:\n");
+    sleep(10);
+    printf("sleeped, now kill child.\n");
+    kill(child1, 9);
+
+    wait((void *)0);
+    printf("stop kill  thread test passed!\n");
 }
+
+void stopContTestThreads()
+{
+
+    //stop child and then kill him while being stopped
+    printf("starting stopkill test threads!\n");
+    int child1;
+    if ((child1 = fork()) == 0)
+    {
+        char *stacks[20];
+        for (int i = 0; i < 20; i++)
+        {
+            stacks[i] = ((char *)malloc(4000 * sizeof(char)));
+        }
+        //int pid[5];
+
+        // int childs2[7];
+
+        for (int j = 0; j < 7; j++)
+        {
+             kthread_create(&forverrun, stacks[j]);
+            //printf("child id is %d\n", child1);
+        }
+        forverrun(1);
+    }
+    sleep(1);
+
+    printf("about to stop child:\n");
+    kill(child1, 17);
+    printf("sleep for 10 seconds and then continue child:\n");
+    sleep(10);
+    printf("sleeped, now continue child.\n");
+    kill(child1, 17);
+    printf("continued, now kill child.\n");
+    kill(child1, 9);
+
+    wait((void *)0);
+    printf("stopcont thread test passed!\n");
+}
+
 
 int main(int argc, char **argv)
 {
 
-    test_alteringcreatejointhreads();
-    ///TAL TESTS ///TODO delte
-    user_handler_update_mask_test2();
-    // ser_handler_update_mask_test();
-    
-    //kernel_handler_update_mask_test();
-    test_stop_cont();
-    ignore_test();
-    //char * arg[]={"test_function","test working",'\0'};
-    //stop_cont_test(arg); //DIDNT pass, we dont have test function
-    //kill_while_freezed_test();
-    
+    //test_alteringcreatejointhreads();
 
-    ///END TAL TESTS???TODO DELETE
+     //thread_test1();
+    // thread_test2();
+    // thread_test3();
+    //userHandlerTest(); // dosnt work with multiplate cpu.
 
-    thread_test1();
-    thread_test2();
-    thread_test3();
-    userHandlerTest(); // dosnt work with multiplate cpu.
+    // SetMaskTest();
+    // stopContTest1();
+    // stopContTest2();
+    // stopKillTest();
+    // signalsmaskstest();
+    // stopKillTestThreads();
+    // stopContTestThreads();
 
-    SetMaskTest();
-    stopContTest1();
-    stopContTest2();
-    stopKillTest();
-    signalsmaskstest();
-    KillFromKeyboard();
 
-    //communicationTest();
-
-    // multipleSignalsTest();
-    //printf("hereeeeeeeeeeeeeeeeeee");
+    printf("hereeeeeeeeeeeeeeeeeee");
     exit(0);
 }
 void fun(int signum)
@@ -932,15 +686,14 @@ void dummyFunc3(int signum)
 
 void incCount(int signum)
 {
-    // printf("in incount()\n");
+    printf("in incount()\n");
     count++;
     //printf("%d\n", count);
 }
 
 void incCount2(int signum)
 {
-   // printf("count2 is %d\n", count2);
-
+    //printf("count2 is %d\n", count2);
     count2++;
 
     kthread_exit(0);
@@ -948,45 +701,18 @@ void incCount2(int signum)
 
 void incCount3(int signum)
 {
-   // printf("in incount3\n");
+    // printf("in incount3\n");
     count3++;
     kthread_exit(0);
 }
 
-// void itoa(int num,char* str){
-//
-// }
-
-void itoa(int n, char s[])
+void forverrun(int signum)
 {
-    int i, sign;
+    int i = 0;
+  while (1) {
+    i++;
+  }
 
-    if ((sign = n) < 0) /* record sign */
-        n = -n;         /* make n positive */
-    i = 0;
-    do
-    {                          /* generate digits in reverse order */
-        s[i++] = n % 10 + '0'; /* get next digit */
-    } while ((n /= 10) > 0);   /* delete it */
-    if (sign < 0)
-        s[i++] = '-';
-    s[i] = '\0';
-    reverse(s);
+    kthread_exit(0);
 }
 
-void reverse(char s[])
-{
-    int i, j;
-    char c;
-    char *curr = s;
-    int stringLength = 0;
-    while (*(curr++) != 0)
-        stringLength++;
-
-    for (i = 0, j = stringLength - 1; i < j; i++, j--)
-    {
-        c = s[i];
-        s[i] = s[j];
-        s[j] = c;
-    }
-}

@@ -63,6 +63,11 @@ void usertrap(void)
       kthread_exit(-1);
     }
 
+     while (p->freezed)
+  {
+    yield();
+  }
+
     // sepc points to the ecall instruction,
     // but we want to return to the next instruction.
     t->trapframe->epc += 4;
@@ -91,6 +96,12 @@ void usertrap(void)
   {
     kthread_exit(-1);
   }
+
+  while (p->freezed)
+  {
+    yield();
+  }
+  
 
   // give up the CPU if this is a timer interrupt.
   if (which_dev == 2)

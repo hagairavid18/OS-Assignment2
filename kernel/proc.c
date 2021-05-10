@@ -400,13 +400,14 @@ int growproc(int n)
   // Preventing syncronization problems by locking on proc->lock:
   //TODO: acquire (&p->lock) caused panics in usertests, so need somthing else
   //printf("acquire growproc() proc=%p\n", p);
-  //acquire(&p->lock);
+  acquire(&p->lock);
 
   sz = p->sz;
   if (n > 0)
   {
     if ((sz = uvmalloc(p->pagetable, sz, sz + n)) == 0)
     {
+      release(&p->lock);
       return -1;
     }
   }
@@ -417,7 +418,7 @@ int growproc(int n)
   p->sz = sz;
 
   //printf("release growproc() proc=%p\n", p);
-  //release(&p->lock);
+  release(&p->lock);
   return 0;
 }
 
@@ -515,7 +516,7 @@ void reparent(struct proc *p)
 // until its parent calls wait().
 void exit(int status)
 {
-
+  myproc()->killed = 0;
   // printf("in exit i am %p,my parent is %p\n",myproc(),myproc()->parent); //TODO delete
   struct proc *p = myproc();
   struct thread *ct = mythread();
@@ -574,6 +575,9 @@ void exit(int status)
         if (t->state != ZOMBIE_THREAD && t->state != UNUSED_THREAD)
           is_alive = 1;
       }
+    }
+    if (is_alive){
+      yield();
     }
   }
 
@@ -1126,14 +1130,14 @@ void sigret(void)
 void sigstop_handler()
 {
   struct proc *p = myproc();
-  printf("in sigstop\n");//TODO delte
+  //printf("in sigstop\n");//TODO delte
 
   //By default, the process will wait to SIGCONT signal, and if you register for some signal the SIGCONT handler,
   // it should wait for the SIGCONT signal (if its signal handler is still SIGCONT default handler), or to the newly registered signal.
   while (1)
   {
-    yield();
-    if (((p->pendingSigs & 1 << SIGCONT) == 0) || ((p->pendingSigs & 1 << SIGCONT) && ((p->sigMask & 1 << SIGCONT) == 0) && (p->sigHandlers[SIGCONT] == 0)))
+    
+    if (((p->pendingSigs & 1 << SIGSTOP) == 0) || ((p->pendingSigs & 1 << SIGCONT) && ((p->sigMask & 1 << SIGCONT) == 0) && (p->sigHandlers[SIGCONT] == 0)))
     {
       return;
     }
@@ -1149,12 +1153,13 @@ void sigstop_handler()
     {
       return;
     }
+    yield();
   }
 }
 
 void sigkill_handler()
 {
-  printf("in sigkill\n"); //TODO delete
+  //printf("in sigkill\n"); //TODO delete
   struct proc *p = myproc();
   p->killed = 1;
 }
@@ -1167,7 +1172,7 @@ void handleSignal()
   p = myproc();
   if ((p != 0) && p->handleingsignal == 0)
   {
-
+    p->handleingsignal = 1;
     for (int i = 0; i < 32; ++i)
     {
       if ((1 << i & p->pendingSigs) && !((1 << i) & p->sigMask))
@@ -1176,6 +1181,7 @@ void handleSignal()
         if (p->sigHandlers[i] == (void *)SIG_IGN)
         {
           p->pendingSigs ^= (1 << i); // Remove the signal from the pending_signals
+          p->handleingsignal = 0;
           return;
         }
         //printf("found signal to deal with. number %d\n ", i);
@@ -1186,9 +1192,12 @@ void handleSignal()
         {
           p->maskB = p->sigMask;
           p->sigMask = p->handlersmasks[i];
+          p->freezed = 1;
           sigstop_handler();
+          p->freezed = 0;
           p->sigMask = p->maskB;
           p->pendingSigs ^= (1 << i);
+          p->handleingsignal = 0;
           return;
         }
         else if (i == SIGKILL || p->sigHandlers[i] == (void *)SIGKILL)
@@ -1199,11 +1208,13 @@ void handleSignal()
           p->sigMask = p->maskB;
 
           p->pendingSigs ^= (1 << i);
+          p->handleingsignal = 0;
           return;
         }
         else if ((i == SIGCONT && p->sigHandlers[i] == (void *)SIG_DFL) || p->sigHandlers[i] == (void *)SIGCONT)
         {
           p->pendingSigs ^= (1 << i); // Remove the signal from the pending_signals
+          p->handleingsignal = 0;
           return;
         }
 
@@ -1215,9 +1226,10 @@ void handleSignal()
           p->sigMask = p->maskB;
 
           p->pendingSigs ^= (1 << i); // Remove the signal from the pending_signals
+          p->handleingsignal = 0;
           return;
         }
-        else if (p->handleingsignal == 0)
+        else
         {
 
           //printf("in user handling case\n");
@@ -1252,6 +1264,9 @@ void handleSignal()
         }
       }
     }
+    p->handleingsignal = 0;
+    return;
+
   }
   return;
 }
@@ -1457,6 +1472,14 @@ int kthread_join(int thread_id, int *status)
 
     if (nt->state == ZOMBIE_THREAD)
     {
+
+      if (status != 0 && copyout(p->pagetable, (uint64)status, (char *)&nt->xstate,
+                                   sizeof(nt->xstate)) < 0)
+          {
+            release(&nt->lock);
+            release(&wait_lock);
+            return -1;
+          }
       freethread(nt);
 
       release(&nt->lock);

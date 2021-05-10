@@ -137,6 +137,7 @@ struct proc {
 
   int maskB;
   int handleingsignal;
+  int freezed;
 
   // Q3 
   struct thread threads[NTHREAD]; //threads 

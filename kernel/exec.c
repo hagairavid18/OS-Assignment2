@@ -22,6 +22,34 @@ int exec(char *path, char **argv)
   pagetable_t pagetable = 0, oldpagetable;
   struct proc *p = myproc(); // TODO: Check if needed
   struct thread *th = mythread();
+
+//Q3.1
+  //Set kill to all other threads, prior execution
+  struct thread *thread; // TODO: replace with th->procparent->threads?
+  for (thread = p->threads; thread < &p->threads[NTHREAD]; thread++)
+    if (thread != th)
+      thread->killed = 1;
+
+  int is_alive = 1;
+  while (is_alive)
+  {
+
+    is_alive = 0;
+    for (thread = p->threads; thread < &p->threads[NTHREAD]; thread++)
+    {
+      if (thread != mythread)
+      {
+        if (thread->state != ZOMBIE_THREAD && t->state != UNUSED_THREAD)
+          is_alive = 1;
+      }
+    }
+    if (is_alive){
+      yield();
+    }
+  }
+
+
+
   begin_op();
 
   if ((ip = namei(path)) == 0)
@@ -127,12 +155,7 @@ int exec(char *path, char **argv)
 
   proc_freepagetable(oldpagetable, oldsz);
 
-  //Q3.1
-  //Set kill to all other threads, prior execution
-  struct thread *thread; // TODO: replace with th->procparent->threads?
-  for (thread = p->threads; thread < &p->threads[NTHREAD]; thread++)
-    if (thread != th)
-      thread->killed = 1;
+  
 
   //TASK 2.1.2
   for (i = 0; i < 32; i++)
