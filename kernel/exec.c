@@ -37,9 +37,9 @@ int exec(char *path, char **argv)
     is_alive = 0;
     for (thread = p->threads; thread < &p->threads[NTHREAD]; thread++)
     {
-      if (thread != mythread)
+      if (thread != mythread())
       {
-        if (thread->state != ZOMBIE_THREAD && t->state != UNUSED_THREAD)
+        if (thread->state != ZOMBIE_THREAD && thread->state != UNUSED_THREAD)
           is_alive = 1;
       }
     }
